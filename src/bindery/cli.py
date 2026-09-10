@@ -10,6 +10,7 @@ from bindery.exceptions import BinderyError
 from bindery.models.config import JobConfig
 from bindery.models.crop import MarginSpec
 from bindery.orchestration.pipeline import run_job
+from bindery.orchestration.progress import ProgressEvent
 
 __all__ = ["main"]
 
@@ -26,8 +27,40 @@ build options:
   --margin N            Uniform margin in pixels (default 0)
   --grayscale           Convert pages to grayscale
   --stamp               Stamp 1-based page numbers in the footer
-  --dpi N               PDF resolution metadata (default 300)
+  --dpi N               PDF page geometry dpi (default 300)
+  --force               Rebuild even if output is up to date
 """
+
+
+def _print_progress(event: ProgressEvent) -> None:
+    """Render a single progress event on stderr.
+
+    Args:
+        event: Pipeline progress notification.
+
+    Examples:
+        >>> _print_progress(ProgressEvent(stage="done", completed=1, total=1))
+    """
+    if event.stage == "transform":
+        label = event.current or ""
+        print(
+            f"[transform {event.completed}/{event.total}] {label}",
+            file=sys.stderr,
+            end="\r" if event.completed < event.total else "\n",
+            flush=True,
+        )
+        return
+    if event.stage == "discover":
+        print(f"[discover] {event.message or ''}", file=sys.stderr)
+        return
+    if event.stage == "assemble":
+        print(f"[assemble] {event.current or ''}", file=sys.stderr)
+        return
+    if event.stage == "skipped":
+        print("[skip] output up to date", file=sys.stderr)
+        return
+    if event.stage == "done":
+        print(f"[done] {event.message or ''}", file=sys.stderr)
 
 
 def _cmd_build(args: list[str]) -> int:
@@ -50,6 +83,7 @@ def _cmd_build(args: list[str]) -> int:
     grayscale = False
     stamp = False
     dpi = 300
+    force = False
 
     i = 1
     while i < len(args):
@@ -91,6 +125,10 @@ def _cmd_build(args: list[str]) -> int:
             stamp = True
             i += 1
             continue
+        if token == "--force":
+            force = True
+            i += 1
+            continue
         print(f"bindery: unknown build option: {token}", file=sys.stderr)
         return 2
 
@@ -106,17 +144,20 @@ def _cmd_build(args: list[str]) -> int:
             grayscale=grayscale,
             stamp_page_numbers=stamp,
             dpi=dpi,
+            force=force,
         )
-        report = run_job(config)
+        report = run_job(config, on_progress=_print_progress)
     except BinderyError as exc:
         print(f"bindery: {exc}", file=sys.stderr)
-        # Validation vs I/O split for exit codes
         name = type(exc).__name__
         if "Validation" in name or "Config" in name:
             return 3
         return 4
 
-    print(f"Wrote {report.output_path} ({report.page_count} pages)")
+    if report.skipped:
+        print(f"Up to date: {report.output_path} ({report.page_count} pages)")
+    else:
+        print(f"Wrote {report.output_path} ({report.page_count} pages)")
     return 0
 
 
@@ -132,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
 
     Examples:
         >>> main(["--version"])  # doctest: +SKIP
-        bindery 0.3.0
+        bindery 0.4.0
         0
     """
     args = list(sys.argv[1:] if argv is None else argv)

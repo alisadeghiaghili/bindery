@@ -2,7 +2,7 @@
 
 Assemble image folders into a single, clean PDF document.
 
-**Status:** v0.3.0 — CLI `build` works end-to-end. Windows `bindery.exe` is published on Releases.
+**Status:** v0.4.0 — CLI `build` with progress and resume. Windows `bindery.exe` is published on Releases.
 
 ## What this is
 
@@ -37,9 +37,12 @@ Requires Python 3.12+.
 
 ```bash
 bindery build ./pages -o book.pdf --margin 8 --grayscale --stamp --dpi 300
+bindery build ./pages -o book.pdf --force   # rebuild even if up to date
 bindery --version
 bindery --help
 ```
+
+A sidecar `book.pdf.bindery.json` records a config fingerprint. Re-running an identical job prints `Up to date` and skips work unless you pass `--force`.
 
 Exit codes: `0` success, `2` usage, `3` validation, `4` I/O.
 
