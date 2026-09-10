@@ -2,16 +2,55 @@
 
 from __future__ import annotations
 
-import io
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 import img2pdf
-from pypdf import PdfReader, PdfWriter
+from pypdf import PdfReader
 
 from bindery.exceptions import BinderyIOError, BinderyValidationError
 
 __all__ = ["write_pdf"]
+
+LayoutFun = Callable[[int, int, tuple[float, float]], tuple[float, float, float, float]]
+
+
+def _layout_for_dpi(dpi: int) -> LayoutFun:
+    """Build an img2pdf ``layout_fun`` that forces page size from ``dpi``.
+
+    img2pdf 0.6.x does not accept a ``dpi=`` convert kwarg; page geometry comes
+    from image metadata (default 96) unless a layout function overrides it.
+
+    Args:
+        dpi: Pixels per inch used to convert pixel size to PDF points.
+
+    Returns:
+        LayoutFun: ``(width_px, height_px, ndpi) -> (page_w, page_h, img_w, img_h)``.
+
+    Examples:
+        >>> layout = _layout_for_dpi(100)
+        >>> layout(100, 50, (96.0, 96.0))
+        (72.0, 36.0, 72.0, 36.0)
+        >>> layout(10, 10, (96.0, 96.0))
+        (3.0, 3.0, 3.0, 3.0)
+    """
+
+    def layout(
+        imgwidthpx: int,
+        imgheightpx: int,
+        ndpi: tuple[float, float],
+    ) -> tuple[float, float, float, float]:
+        del ndpi  # image dpi is intentionally ignored
+        width_pt = imgwidthpx * 72.0 / dpi
+        height_pt = imgheightpx * 72.0 / dpi
+        # pikepdf/PDF viewers reject pages smaller than 3pt on either axis.
+        if width_pt < 3.0 or height_pt < 3.0:
+            scale = max(3.0 / max(width_pt, 1e-9), 3.0 / max(height_pt, 1e-9))
+            width_pt *= scale
+            height_pt *= scale
+        return (width_pt, height_pt, width_pt, height_pt)
+
+    return layout
 
 
 def write_pdf(
@@ -31,7 +70,7 @@ def write_pdf(
     Args:
         image_paths: Source images in page order. Must be non-empty.
         output_path: Destination PDF path. Parent directories are created.
-        dpi: Resolution metadata for the PDF. Must be > 0.
+        dpi: Pixels per inch used for PDF page geometry. Must be > 0.
         title: Optional document title metadata.
         author: Optional document author metadata.
 
@@ -69,28 +108,17 @@ def write_pdf(
         resolved.append(str(candidate))
 
     try:
-        raw_pdf: bytes = img2pdf.convert(resolved, dpi=(dpi, dpi))
+        raw_pdf: bytes = img2pdf.convert(
+            resolved,
+            layout_fun=_layout_for_dpi(dpi),
+            title=title,
+            author=author,
+        )
     except (OSError, ValueError, TypeError, RuntimeError) as exc:
         raise BinderyIOError(f"PDF conversion failed: {exc}") from exc
 
-    if title is None and author is None:
-        try:
-            output.write_bytes(raw_pdf)
-        except OSError as exc:
-            raise BinderyIOError(f"cannot write PDF: {output}: {exc}") from exc
-        return output
-
-    writer = PdfWriter()
-    writer.append(io.BytesIO(raw_pdf))
-    metadata: dict[str, Any] = {}
-    if title is not None:
-        metadata["/Title"] = title
-    if author is not None:
-        metadata["/Author"] = author
-    writer.add_metadata(metadata)
     try:
-        with output.open("wb") as handle:
-            writer.write(handle)
+        output.write_bytes(raw_pdf)
     except OSError as exc:
         raise BinderyIOError(f"cannot write PDF: {output}: {exc}") from exc
 
