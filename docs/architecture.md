@@ -16,15 +16,15 @@ Dependencies point inward only.
 | `adapters` | filesystem, Pillow, PDF writers | models, exceptions |
 | `models` | immutable config/page types | stdlib only |
 
-## v0.2.0 status
+## v0.3.0 status
 
 Present:
 
-- package shell, exceptions, minimal CLI (`--version` / `--help`)
-- `models`: `MarginSpec`, `CropBox`, `PageFile`, `JobConfig`
-- `domain`: geometry, natural ordering, validation
+- models, domain, adapters (fs/images/pdf), orchestration pipeline
+- CLI `build` + Windows `bindery.exe` release asset
+- single-pass PDF write (no per-page rewrite)
 
-Still missing: adapters (Pillow/PDF), orchestration, CLI `build`.
+Still missing: GUI, OCR extra, resume/manifest, rich progress UI.
 
 ## Non-goals (permanent)
 
