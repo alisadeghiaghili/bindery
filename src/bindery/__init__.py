@@ -1,7 +1,7 @@
 """bindery — assemble image folders and PDF pages into a single PDF.
 
-Public surface for v0.1.0 is intentionally small: version metadata and the
-exception hierarchy. Domain, adapters, and CLI arrive in later releases.
+Public surface includes version metadata, the exception hierarchy, and the
+assemble pipeline used by the CLI.
 """
 
 from __future__ import annotations
@@ -32,11 +32,11 @@ def get_version() -> str:
     installed (editable source tree without a build).
 
     Returns:
-        str: Version string in ``MAJOR.MINOR.PATCH`` form, for example ``"0.1.0"``.
+        str: Version string in ``MAJOR.MINOR.PATCH`` form, for example ``"0.3.0"``.
 
     Examples:
         >>> get_version()  # doctest: +SKIP
-        '0.1.0'
+        '0.3.0'
     """
     try:
         return version("bindery")
@@ -45,4 +45,4 @@ def get_version() -> str:
 
 
 #: Declared package version used when metadata is unavailable.
-__version__: str = "0.2.0"
+__version__: str = "0.3.0"

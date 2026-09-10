@@ -1,12 +1,12 @@
 # bindery
 
-Assemble image folders and PDF pages into a single, clean PDF document.
+Assemble image folders into a single, clean PDF document.
 
-**Status:** v0.1.0 — toolchain and package skeleton only. No transform pipeline yet.
+**Status:** v0.3.0 — CLI `build` works end-to-end. Windows `bindery.exe` is published on Releases.
 
 ## What this is
 
-`bindery` takes a directory of page images (PNG/JPEG/WebP) or mixed inputs and produces one multi-page PDF, with optional crop/margins, grayscale, page stamps, and metadata. It is a local document-assembly tool.
+`bindery` takes a directory of page images (PNG/JPEG/WebP/TIFF/BMP) and produces one multi-page PDF, with optional margins, grayscale, page stamps, and title metadata. Processing is local.
 
 ## Non-goals
 
@@ -18,28 +18,30 @@ These are permanent product boundaries, not backlog:
 
 If a workflow needs the above, it belongs in a different product.
 
-## Requirements
+## Install
 
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (recommended)
+### Standalone Windows executable
 
-## Install (development)
+Download `bindery.exe` from [Releases](https://github.com/alisadeghiaghili/bindery/releases) (asset is versioned as `bindery-<version>-windows-x64.exe`).
+
+### From source
 
 ```bash
 uv sync --group dev
 uv run bindery --version
 ```
 
-## Usage (v0.1.0)
+Requires Python 3.12+.
+
+## Usage
 
 ```bash
-uv run bindery --version
-# bindery 0.1.0
-
-uv run python -m bindery --help
+bindery build ./pages -o book.pdf --margin 8 --grayscale --stamp --dpi 300
+bindery --version
+bindery --help
 ```
 
-Real `build` / `inspect` / `doctor` commands arrive in later 0.x releases. See [CHANGELOG](CHANGELOG.md).
+Exit codes: `0` success, `2` usage, `3` validation, `4` I/O.
 
 ## Development
 
@@ -48,12 +50,14 @@ uv run ruff check src tests
 uv run ruff format --check src tests
 uv run mypy src
 uv run pytest
+uv run python tools/doc_audit.py --path src/bindery --style google --require-example
 ```
 
-Documentation gate (Google style, examples required):
+Build the Windows executable locally:
 
 ```bash
-uv run python tools/doc_audit.py --path src/bindery --style google --require-example
+uv run pyinstaller --clean --noconfirm bindery.spec
+dist\bindery.exe --version
 ```
 
 ## License

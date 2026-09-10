@@ -1,16 +1,123 @@
-"""Command-line entry point for bindery.
-
-v0.1.0 exposes only version reporting. The ``build`` / ``inspect`` /
-``doctor`` commands ship in later stages.
-"""
+"""Command-line entry point for bindery."""
 
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from bindery import get_version
+from bindery.exceptions import BinderyError
+from bindery.models.config import JobConfig
+from bindery.models.crop import MarginSpec
+from bindery.orchestration.pipeline import run_job
 
 __all__ = ["main"]
+
+_USAGE = """\
+Usage:
+  bindery --version
+  bindery --help
+  bindery build SOURCE -o OUTPUT [options]
+
+Assemble a folder of page images into a single PDF.
+
+build options:
+  -o, --output PATH     Output PDF path (required)
+  --margin N            Uniform margin in pixels (default 0)
+  --grayscale           Convert pages to grayscale
+  --stamp               Stamp 1-based page numbers in the footer
+  --dpi N               PDF resolution metadata (default 300)
+"""
+
+
+def _cmd_build(args: list[str]) -> int:
+    """Parse ``build`` arguments and run one job.
+
+    Args:
+        args: Arguments after the ``build`` verb.
+
+    Returns:
+        int: ``0`` on success, ``2`` on usage error, ``3`` on validation, ``4`` on I/O.
+    """
+    if not args:
+        print("bindery: build requires a SOURCE directory", file=sys.stderr)
+        print(_USAGE, file=sys.stderr)
+        return 2
+
+    source = Path(args[0])
+    output: Path | None = None
+    margin = 0
+    grayscale = False
+    stamp = False
+    dpi = 300
+
+    i = 1
+    while i < len(args):
+        token = args[i]
+        if token in ("-o", "--output"):
+            if i + 1 >= len(args):
+                print("bindery: --output requires a path", file=sys.stderr)
+                return 2
+            output = Path(args[i + 1])
+            i += 2
+            continue
+        if token == "--margin":
+            if i + 1 >= len(args):
+                print("bindery: --margin requires an integer", file=sys.stderr)
+                return 2
+            try:
+                margin = int(args[i + 1])
+            except ValueError:
+                print(f"bindery: invalid --margin value: {args[i + 1]}", file=sys.stderr)
+                return 2
+            i += 2
+            continue
+        if token == "--dpi":
+            if i + 1 >= len(args):
+                print("bindery: --dpi requires an integer", file=sys.stderr)
+                return 2
+            try:
+                dpi = int(args[i + 1])
+            except ValueError:
+                print(f"bindery: invalid --dpi value: {args[i + 1]}", file=sys.stderr)
+                return 2
+            i += 2
+            continue
+        if token == "--grayscale":
+            grayscale = True
+            i += 1
+            continue
+        if token == "--stamp":
+            stamp = True
+            i += 1
+            continue
+        print(f"bindery: unknown build option: {token}", file=sys.stderr)
+        return 2
+
+    if output is None:
+        print("bindery: build requires -o/--output", file=sys.stderr)
+        return 2
+
+    try:
+        config = JobConfig(
+            source_dir=source,
+            output_path=output,
+            margins=MarginSpec.uniform(margin),
+            grayscale=grayscale,
+            stamp_page_numbers=stamp,
+            dpi=dpi,
+        )
+        report = run_job(config)
+    except BinderyError as exc:
+        print(f"bindery: {exc}", file=sys.stderr)
+        # Validation vs I/O split for exit codes
+        name = type(exc).__name__
+        if "Validation" in name or "Config" in name:
+            return 3
+        return 4
+
+    print(f"Wrote {report.output_path} ({report.page_count} pages)")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -18,15 +125,14 @@ def main(argv: list[str] | None = None) -> int:
 
     Args:
         argv: Argument list without the program name. ``None`` uses
-            ``sys.argv[1:]``. Unknown arguments are rejected with exit code
-            ``2`` in this release.
+            ``sys.argv[1:]``.
 
     Returns:
-        int: Process exit code. ``0`` on success, ``2`` on usage error.
+        int: ``0`` success, ``2`` usage, ``3`` validation, ``4`` I/O.
 
     Examples:
-        >>> main(["--version"])
-        bindery 0.1.0
+        >>> main(["--version"])  # doctest: +SKIP
+        bindery 0.3.0
         0
     """
     args = list(sys.argv[1:] if argv is None else argv)
@@ -36,9 +142,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args in (["--help"], ["-h"]):
-        print("Usage: bindery [--version]")
-        print("Assemble image folders into PDF. Full commands land in v0.5.0.")
+        print(_USAGE)
         return 0
+
+    if args[0] == "build":
+        return _cmd_build(args[1:])
 
     print(f"bindery: unknown arguments: {' '.join(args)}", file=sys.stderr)
     print("Try: bindery --help", file=sys.stderr)
