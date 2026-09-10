@@ -14,17 +14,17 @@ Dependencies point inward only.
 | `orchestration` | pipeline steps, progress, resume | domain, adapters, models, exceptions |
 | `domain` | pure geometry, ordering, validation | models, exceptions |
 | `adapters` | filesystem, Pillow, PDF writers | models, exceptions |
-| `models` | immutable config/page types | stdlib / pydantic only |
+| `models` | immutable config/page types | stdlib only |
 
-## v0.1.0 status
+## v0.2.0 status
 
-Only the package shell exists:
+Present:
 
-- `bindery.get_version` / `bindery.__version__`
-- exception hierarchy
-- minimal CLI (`--version` / `--help`)
+- package shell, exceptions, minimal CLI (`--version` / `--help`)
+- `models`: `MarginSpec`, `CropBox`, `PageFile`, `JobConfig`
+- `domain`: geometry, natural ordering, validation
 
-Domain, adapters, and orchestration land in v0.2.0–v0.4.0.
+Still missing: adapters (Pillow/PDF), orchestration, CLI `build`.
 
 ## Non-goals (permanent)
 
