@@ -16,15 +16,16 @@ Dependencies point inward only.
 | `adapters` | filesystem, Pillow, PDF writers | models, exceptions |
 | `models` | immutable config/page types | stdlib only |
 
-## v0.5.0 status
+## v0.6.0 status
 
 Present:
 
 - models, domain, adapters, orchestration (progress + resume)
-- CLI: `build`, `inspect`, `doctor`
+- CLI: `build`, `inspect`, `doctor`, `gui`
+- tkinter GUI shell over `run_job` (no UI business logic)
 - Windows `bindery.exe` on Releases
 
-Still missing: GUI, OCR extra, rich progress UI (tqdm/rich).
+Still missing: OCR extra, PySide6 upgrade path (optional).
 
 ## Non-goals (permanent)
 

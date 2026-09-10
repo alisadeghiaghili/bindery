@@ -1,6 +1,6 @@
 [project]
 name = "bindery"
-version = "0.5.0"
+version = "0.6.0"
 description = "Assemble image folders and PDF pages into a single, clean PDF document."
 readme = "README.md"
 license = "Apache-2.0"
@@ -33,6 +33,9 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.9",
     "mypy>=1.14",
+]
+gui = [
+    "PySide6-Essentials>=6.11.2",
 ]
 ocr = []
 

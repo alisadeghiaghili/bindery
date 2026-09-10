@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-10
+
+### Added
+
+- Desktop GUI (`bindery gui`) using tkinter, stdlib only.
+- GUI calls the same `run_job` pipeline; worker thread + progress queue.
+- Cooperative cancel, progress bar, log panel, margin/dpi/options form.
+- Optional extra `bindery[gui]` reserved for future PySide6; current GUI needs no extra install.
+
+### Notes
+
+- PySide6 was evaluated but not adopted for v0.6: multi-hundred-MB wheels are unnecessary for this form. tkinter keeps the GUI dependency-free.
+
 ## [0.5.0] - 2026-09-10
 
 ### Added
@@ -77,7 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Apache License 2.0.
 - README with explicit non-goals (no scraping, no DRM circumvention).
 
-[Unreleased]: https://github.com/alisadeghiaghili/bindery/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/alisadeghiaghili/bindery/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/alisadeghiaghili/bindery/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/alisadeghiaghili/bindery/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/alisadeghiaghili/bindery/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/alisadeghiaghili/bindery/compare/v0.3.0...v0.3.1
