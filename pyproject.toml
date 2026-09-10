@@ -1,0 +1,120 @@
+[project]
+name = "bindery"
+version = "0.1.0"
+description = "Assemble image folders and PDF pages into a single, clean PDF document."
+readme = "README.md"
+license = "Apache-2.0"
+authors = [
+    { name = "Ali Sadeghi Aghili", email = "alisadeghiaghili@gmail.com" },
+]
+requires-python = ">=3.12"
+keywords = ["pdf", "images", "merge", "document", "cli", "pipeline"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+license-files = ["LICENSE"]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+    "mypy>=1.14",
+]
+ocr = []
+
+[project.scripts]
+bindery = "bindery.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/alisadeghiaghili/bindery"
+Repository = "https://github.com/alisadeghiaghili/bindery"
+Changelog = "https://github.com/alisadeghiaghili/bindery/blob/main/CHANGELOG.md"
+
+[build-system]
+requires = ["uv_build>=0.12.12,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+    "mypy>=1.14",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+extend-exclude = ["tools/doc_audit.py"]
+
+[tool.ruff.lint]
+extend-select = [
+    "UP",
+    "I",
+    "B",
+    "SIM",
+    "RUF",
+    "C4",
+    "ARG",
+    "PTH",
+    "RET",
+]
+ignore = [
+    "COM812",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ARG001", "ARG002"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+packages = ["bindery"]
+warn_unreachable = true
+warn_no_return = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+show_error_codes = true
+pretty = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "-q",
+]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+source = ["bindery"]
+omit = ["src/bindery/__main__.py"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = false
+exclude_also = [
+    "if __name__ == .__main__.:",
+    "raise SystemExit",
+]
