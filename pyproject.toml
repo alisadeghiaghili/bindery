@@ -1,6 +1,6 @@
 [project]
 name = "bindery"
-version = "0.1.0"
+version = "0.2.0"
 description = "Assemble image folders and PDF pages into a single, clean PDF document."
 readme = "README.md"
 license = "Apache-2.0"
