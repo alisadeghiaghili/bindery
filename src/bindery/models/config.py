@@ -24,12 +24,13 @@ class JobConfig:
         grayscale: Convert pages to 8-bit grayscale before writing.
         stamp_page_numbers: Draw a footer page number on each page.
         dpi: Resolution metadata written into the PDF. Must be > 0.
+        force: Rebuild even when a matching resume manifest says the output is current.
 
     Examples:
         >>> from pathlib import Path
         >>> cfg = JobConfig(source_dir=Path("pages"), output_path=Path("book.pdf"))
-        >>> cfg.dpi, cfg.grayscale
-        (300, False)
+        >>> cfg.dpi, cfg.grayscale, cfg.force
+        (300, False, False)
     """
 
     source_dir: Path
@@ -38,6 +39,7 @@ class JobConfig:
     grayscale: bool = False
     stamp_page_numbers: bool = False
     dpi: int = _DEFAULT_DPI
+    force: bool = False
 
     def __post_init__(self) -> None:
         """Coerce paths and validate numeric fields.

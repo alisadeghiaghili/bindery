@@ -125,3 +125,30 @@ def test_build_empty_source(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
     captured = capsys.readouterr()
     assert code == 3
     assert "no page" in captured.err
+
+
+def test_build_skips_when_up_to_date(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Identical re-run prints Up to date."""
+    source = tmp_path / "pages"
+    source.mkdir()
+    Image.new("RGB", (16, 16), (10, 10, 10)).save(source / "p1.png")
+    output = tmp_path / "book.pdf"
+    assert main(["build", str(source), "-o", str(output)]) == 0
+    capsys.readouterr()
+    assert main(["build", str(source), "-o", str(output)]) == 0
+    captured = capsys.readouterr()
+    assert "Up to date" in captured.out
+
+
+def test_build_force_rebuilds(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """--force rebuilds instead of skipping."""
+    source = tmp_path / "pages"
+    source.mkdir()
+    Image.new("RGB", (16, 16), (10, 10, 10)).save(source / "p1.png")
+    output = tmp_path / "book.pdf"
+    assert main(["build", str(source), "-o", str(output)]) == 0
+    capsys.readouterr()
+    assert main(["build", str(source), "-o", str(output), "--force"]) == 0
+    captured = capsys.readouterr()
+    assert "Wrote" in captured.out
+    assert "Up to date" not in captured.out
