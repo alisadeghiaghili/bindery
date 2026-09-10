@@ -2,7 +2,7 @@
 
 Assemble image folders into a single, clean PDF document.
 
-**Status:** v0.5.0 — CLI `build` / `inspect` / `doctor` with progress and resume. Windows `bindery.exe` is published on Releases.
+**Status:** v0.6.0 — CLI + desktop GUI on the same pipeline. Windows `bindery.exe` is published on Releases.
 
 ## What this is
 
@@ -40,6 +40,7 @@ bindery build ./pages -o book.pdf --margin 8 --grayscale --stamp --dpi 300
 bindery build ./pages -o book.pdf --force   # rebuild even if up to date
 bindery inspect ./pages
 bindery doctor
+bindery gui
 bindery --version
 bindery --help
 ```

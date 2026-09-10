@@ -23,6 +23,7 @@ Usage:
   bindery build SOURCE -o OUTPUT [options]
   bindery inspect SOURCE
   bindery doctor
+  bindery gui
 
 Assemble a folder of page images into a single PDF.
 
@@ -39,6 +40,9 @@ inspect:
 
 doctor:
   Report Python, bindery, and dependency health.
+
+gui:
+  Launch the desktop GUI (tkinter).
 """
 
 
@@ -287,6 +291,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args[0] == "doctor":
         return _cmd_doctor()
+
+    if args[0] == "gui":
+        if len(args) > 1 and args[1] in ("--help", "-h"):
+            print(_USAGE)
+            return 0
+        from bindery.gui import main as gui_main
+
+        return gui_main([])
 
     print(f"bindery: unknown arguments: {' '.join(args)}", file=sys.stderr)
     print("Try: bindery --help", file=sys.stderr)
