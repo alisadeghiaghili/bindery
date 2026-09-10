@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-10
+
+### Added
+
+- `bindery inspect SOURCE`: list pages in assemble order with pixel sizes.
+- `bindery doctor`: report Python, bindery, Pillow, img2pdf, pypdf health.
+- Usage text covers all commands.
+
 ## [0.4.0] - 2026-09-10
 
 ### Added
@@ -69,7 +77,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Apache License 2.0.
 - README with explicit non-goals (no scraping, no DRM circumvention).
 
-[Unreleased]: https://github.com/alisadeghiaghili/bindery/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/alisadeghiaghili/bindery/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/alisadeghiaghili/bindery/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/alisadeghiaghili/bindery/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/alisadeghiaghili/bindery/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/alisadeghiaghili/bindery/compare/v0.2.0...v0.3.0

@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 
 from bindery import get_version
+from bindery.adapters.fs import discover_page_files
+from bindery.adapters.images import load_image
 from bindery.exceptions import BinderyError
 from bindery.models.config import JobConfig
 from bindery.models.crop import MarginSpec
@@ -19,6 +21,8 @@ Usage:
   bindery --version
   bindery --help
   bindery build SOURCE -o OUTPUT [options]
+  bindery inspect SOURCE
+  bindery doctor
 
 Assemble a folder of page images into a single PDF.
 
@@ -29,6 +33,12 @@ build options:
   --stamp               Stamp 1-based page numbers in the footer
   --dpi N               PDF page geometry dpi (default 300)
   --force               Rebuild even if output is up to date
+
+inspect:
+  List pages in assemble order with pixel sizes.
+
+doctor:
+  Report Python, bindery, and dependency health.
 """
 
 
@@ -61,6 +71,89 @@ def _print_progress(event: ProgressEvent) -> None:
         return
     if event.stage == "done":
         print(f"[done] {event.message or ''}", file=sys.stderr)
+
+
+def _cmd_inspect(args: list[str]) -> int:
+    """Run ``bindery inspect``.
+
+    Args:
+        args: Arguments after ``inspect``. Expects a single SOURCE path.
+
+    Returns:
+        int: ``0`` ok, ``2`` usage, ``3`` validation, ``4`` I/O.
+    """
+    if not args:
+        print("bindery: inspect requires a SOURCE directory", file=sys.stderr)
+        print(_USAGE, file=sys.stderr)
+        return 2
+
+    source = Path(args[0])
+    try:
+        pages = discover_page_files(source)
+    except BinderyError as exc:
+        print(f"bindery: {exc}", file=sys.stderr)
+        name = type(exc).__name__
+        return 3 if "Validation" in name or "Config" in name else 4
+
+    print(f"source: {source}")
+    print(f"pages:  {len(pages)}")
+    print("order:")
+    for page in pages:
+        try:
+            image = load_image(page.path)
+            try:
+                width, height = image.size
+            finally:
+                image.close()
+            size_label = f"{width}x{height}"
+        except BinderyError:
+            size_label = "unreadable"
+        print(f"  {page.index + 1:4d}. {page.name:30s} {size_label}")
+    return 0
+
+
+def _cmd_doctor() -> int:
+    """Run ``bindery doctor`` environment checks.
+
+    Returns:
+        int: Always ``0``. Prints a health report.
+    """
+    import platform
+
+    lines: list[str] = []
+    lines.append(f"bindery:  {get_version()}")
+    lines.append(f"python:   {platform.python_version()} ({sys.executable})")
+    lines.append(f"platform: {platform.platform()}")
+
+    for module_name in ("PIL", "img2pdf", "pypdf"):
+        try:
+            module = __import__(module_name)
+        except ImportError:
+            lines.append(f"{module_name}:  MISSING")
+            continue
+        version = getattr(module, "__version__", None) or getattr(module, "VERSION", None)
+        label = "pillow" if module_name == "PIL" else module_name
+        lines.append(f"{label}:  {version or 'unknown'}")
+
+    try:
+        import img2pdf
+
+        has_convert = callable(getattr(img2pdf, "convert", None))
+        lines.append(f"img2pdf API: {'ok' if has_convert else 'FAILED'}")
+    except ImportError:
+        lines.append("img2pdf API: FAILED")
+
+    try:
+        from pypdf import PdfReader, PdfWriter
+
+        _ = (PdfReader, PdfWriter)
+        lines.append("pypdf API:   ok")
+    except ImportError:
+        lines.append("pypdf API:   FAILED")
+
+    for line in lines:
+        print(line)
+    return 0
 
 
 def _cmd_build(args: list[str]) -> int:
@@ -173,7 +266,7 @@ def main(argv: list[str] | None = None) -> int:
 
     Examples:
         >>> main(["--version"])  # doctest: +SKIP
-        bindery 0.4.0
+        bindery 0.5.0
         0
     """
     args = list(sys.argv[1:] if argv is None else argv)
@@ -188,6 +281,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args[0] == "build":
         return _cmd_build(args[1:])
+
+    if args[0] == "inspect":
+        return _cmd_inspect(args[1:])
+
+    if args[0] == "doctor":
+        return _cmd_doctor()
 
     print(f"bindery: unknown arguments: {' '.join(args)}", file=sys.stderr)
     print("Try: bindery --help", file=sys.stderr)
