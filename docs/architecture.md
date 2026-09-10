@@ -16,13 +16,12 @@ Dependencies point inward only.
 | `adapters` | filesystem, Pillow, PDF writers | models, exceptions |
 | `models` | immutable config/page types | stdlib only |
 
-## v0.4.0 status
+## v0.5.0 status
 
 Present:
 
-- models, domain, adapters, orchestration
-- CLI `build` with progress + resume (`--force` to override)
-- resume sidecar fingerprint (`*.pdf.bindery.json`)
+- models, domain, adapters, orchestration (progress + resume)
+- CLI: `build`, `inspect`, `doctor`
 - Windows `bindery.exe` on Releases
 
 Still missing: GUI, OCR extra, rich progress UI (tqdm/rich).

@@ -45,4 +45,4 @@ def get_version() -> str:
 
 
 #: Declared package version used when metadata is unavailable.
-__version__: str = "0.4.0"
+__version__: str = "0.5.0"
