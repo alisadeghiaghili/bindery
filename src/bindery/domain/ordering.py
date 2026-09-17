@@ -16,15 +16,21 @@ _DIGIT_RUN = re.compile(r"(\d+)")
 def natural_sort_key(name: str) -> tuple[tuple[int, object], ...]:
     """Build a sort key that orders digit runs as integers.
 
+    The final ``(2, name)`` term makes the key total: names that collapse to
+    the same numeric structure (``page_2.png`` vs ``page_02.png``) still sort
+    deterministically.
+
     Args:
         name: File name or stem, e.g. ``"page_10.png"``.
 
     Returns:
-        tuple: Sequence of ``(0, str)`` for text chunks and ``(1, int)`` for
-        digit runs, suitable for ``sorted``.
+        tuple: Sequence of ``(0, str)`` for text chunks, ``(1, int)`` for
+        digit runs, and ``(2, str)`` for the original name.
 
     Examples:
         >>> natural_sort_key("page_2.png") < natural_sort_key("page_10.png")
+        True
+        >>> natural_sort_key("page_02.png") < natural_sort_key("page_2.png")
         True
     """
     parts: list[tuple[int, object]] = []
@@ -35,6 +41,7 @@ def natural_sort_key(name: str) -> tuple[tuple[int, object], ...]:
             parts.append((1, int(chunk)))
         else:
             parts.append((0, chunk.lower()))
+    parts.append((2, name))
     return tuple(parts)
 
 
@@ -51,5 +58,7 @@ def sort_page_names(names: Sequence[str] | Iterable[str]) -> list[str]:
     Examples:
         >>> sort_page_names(["page_10.png", "page_2.png", "page_1.png"])
         ['page_1.png', 'page_2.png', 'page_10.png']
+        >>> sort_page_names(["page_2.png", "page_02.png", "page_1.png"])
+        ['page_1.png', 'page_02.png', 'page_2.png']
     """
     return sorted(names, key=natural_sort_key)

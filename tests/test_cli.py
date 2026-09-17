@@ -152,3 +152,39 @@ def test_build_force_rebuilds(tmp_path: Path, capsys: pytest.CaptureFixture[str]
     captured = capsys.readouterr()
     assert "Wrote" in captured.out
     assert "Up to date" not in captured.out
+
+
+def test_build_missing_output_value(capsys: pytest.CaptureFixture[str]) -> None:
+    """--output without a path is a usage error."""
+    assert main(["build", "pages", "--output"]) == 2
+    assert "--output" in capsys.readouterr().err
+
+
+def test_build_invalid_margin_value(capsys: pytest.CaptureFixture[str]) -> None:
+    """--margin must be an integer."""
+    assert main(["build", "pages", "-o", "out.pdf", "--margin", "x"]) == 2
+    assert "margin" in capsys.readouterr().err.lower()
+
+
+def test_build_invalid_dpi_value(capsys: pytest.CaptureFixture[str]) -> None:
+    """--dpi must be an integer."""
+    assert main(["build", "pages", "-o", "out.pdf", "--dpi", "x"]) == 2
+    assert "dpi" in capsys.readouterr().err.lower()
+
+
+def test_build_unknown_option(capsys: pytest.CaptureFixture[str]) -> None:
+    """Unknown build flags are usage errors."""
+    assert main(["build", "pages", "-o", "out.pdf", "--nope"]) == 2
+    assert "unknown" in capsys.readouterr().err.lower()
+
+
+def test_build_negative_margin_maps_to_validation(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Negative --margin fails domain validation (exit 3)."""
+    source = tmp_path / "pages"
+    source.mkdir()
+    Image.new("RGB", (8, 8)).save(source / "a.png")
+    code = main(["build", str(source), "-o", str(tmp_path / "o.pdf"), "--margin", "-2"])
+    assert code == 3
+    assert "margin" in capsys.readouterr().err.lower()

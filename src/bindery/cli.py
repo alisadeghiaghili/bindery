@@ -116,18 +116,35 @@ def _cmd_inspect(args: list[str]) -> int:
     return 0
 
 
+def _safe_platform() -> str:
+    """Return a platform label that cannot crash on Windows WMI probes.
+
+    ``platform.platform()`` may raise fatal WinError/OOM from WMI on some
+    hosts; doctor reports ``sys.platform`` instead.
+
+    Returns:
+        str: ``sys.platform`` value, e.g. ``"win32"``.
+
+    Examples:
+        >>> isinstance(_safe_platform(), str)
+        True
+    """
+    return sys.platform
+
+
 def _cmd_doctor() -> int:
     """Run ``bindery doctor`` environment checks.
 
     Returns:
-        int: Always ``0``. Prints a health report.
+        int: Always ``0``. Prints a health report; host probe failures are
+            reported inline rather than aborting the command.
     """
     import platform
 
     lines: list[str] = []
     lines.append(f"bindery:  {get_version()}")
     lines.append(f"python:   {platform.python_version()} ({sys.executable})")
-    lines.append(f"platform: {platform.platform()}")
+    lines.append(f"platform: {_safe_platform()}")
 
     for module_name in ("PIL", "img2pdf", "pypdf"):
         try:
@@ -270,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
 
     Examples:
         >>> main(["--version"])  # doctest: +SKIP
-        bindery 0.5.0
+        bindery 0.6.0
         0
     """
     args = list(sys.argv[1:] if argv is None else argv)

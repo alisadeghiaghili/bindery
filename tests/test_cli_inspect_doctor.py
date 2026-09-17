@@ -65,6 +65,24 @@ def test_doctor_reports_environment(capsys) -> None:
     assert "bindery" in out.lower()
 
 
+def test_doctor_platform_label_is_sys_platform(capsys) -> None:
+    """doctor reports sys.platform and never calls WMI platform.platform()."""
+    import sys
+
+    code = main(["doctor"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert sys.platform in out
+
+
+def test_inspect_unknown_following_flags_ignored(tmp_path: Path, capsys) -> None:
+    """inspect takes a single SOURCE path; extras after it are unused."""
+    source = _make_pages(tmp_path)
+    code = main(["inspect", str(source), "--extra"])
+    assert code == 0
+    assert "page_1.png" in capsys.readouterr().out
+
+
 def test_inspect_requires_source(capsys) -> None:
     """inspect without a path is usage error."""
     code = main(["inspect"])

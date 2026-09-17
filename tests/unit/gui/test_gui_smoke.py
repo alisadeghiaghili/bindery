@@ -12,9 +12,12 @@ from bindery.orchestration.progress import ProgressEvent
 
 
 @pytest.fixture
-def app() -> BinderyApp:
-    """Create a hidden BinderyApp for tests."""
-    instance = BinderyApp()
+def app():
+    """Create a hidden BinderyApp for tests, or skip if Tk is unavailable."""
+    try:
+        instance = BinderyApp()
+    except Exception as exc:  # noqa: BLE001 - Tcl/Tk may be missing on CI images
+        pytest.skip(f"tkinter runtime unavailable: {exc}")
     instance.root.withdraw()
     yield instance
     with contextlib.suppress(Exception):

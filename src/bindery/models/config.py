@@ -47,15 +47,15 @@ class JobConfig:
         Raises:
             BinderyValidationError: If dpi is non-positive or source equals output.
         """
-        object.__setattr__(self, "source_dir", Path(self.source_dir))
-        object.__setattr__(self, "output_path", Path(self.output_path))
+        source = Path(self.source_dir)
+        output = Path(self.output_path)
+        object.__setattr__(self, "source_dir", source)
+        object.__setattr__(self, "output_path", output)
 
         if not isinstance(self.dpi, int) or isinstance(self.dpi, bool):
             raise BinderyValidationError(f"dpi must be an int, got {type(self.dpi)!r}")
         if self.dpi <= 0:
             raise BinderyValidationError(f"dpi must be positive, got {self.dpi}")
 
-        if self.source_dir == self.output_path:
-            raise BinderyValidationError(
-                f"output must differ from source_dir; both are {self.source_dir}"
-            )
+        if source.resolve() == output.resolve():
+            raise BinderyValidationError(f"output must differ from source_dir; both are {source}")
