@@ -52,6 +52,24 @@ def test_start_requires_paths(app: BinderyApp) -> None:
     assert app._worker is None or not app._worker.is_alive()
 
 
+def test_cancel_job_sets_cancel_flag(app: BinderyApp) -> None:
+    """Cancel sets the cooperative flag and updates status text."""
+    assert not app._cancel.is_set()
+    app._cancel_job()
+    assert app._cancel.is_set()
+    assert "Cancel" in app._status_var.get()
+
+
+def test_handle_error_resets_controls(app: BinderyApp) -> None:
+    """Error/cancel paths re-enable Assemble and disable Cancel."""
+    app._start_btn.configure(state="disabled")
+    app._cancel_btn.configure(state="normal")
+    app._handle_error("cancelled by user")
+    assert str(app._start_btn["state"]) == "normal"
+    assert str(app._cancel_btn["state"]) == "disabled"
+    assert app._status_var.get() == "Cancelled"
+
+
 def test_cli_gui_is_listed() -> None:
     """Help text documents the gui verb."""
     from bindery.cli import _USAGE
