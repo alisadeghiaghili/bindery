@@ -91,8 +91,9 @@ def config_fingerprint(
     """Hash job settings and ordered page content identities.
 
     The payload includes each page's name, size, and mtime so that rewriting
-    an image under the same filename invalidates a resume skip. Title and
-    author are included because they change PDF document metadata.
+    an image under the same filename invalidates a resume skip. Title,
+    author, resolved source_dir, and resolved output_path are included because
+    they change either PDF metadata or which job this manifest belongs to.
 
     Args:
         config: Active job configuration.
@@ -116,6 +117,8 @@ def config_fingerprint(
         "margins": config.margins.as_inset(),
         "title": config.title,
         "author": config.author,
+        "source_dir": str(config.source_dir.resolve()),
+        "output_path": str(config.output_path.resolve()),
         "pages": list(page_identities),
     }
     blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")

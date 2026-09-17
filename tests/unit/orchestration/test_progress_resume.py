@@ -76,6 +76,17 @@ def test_config_fingerprint_stable_and_sensitive(tmp_path: Path) -> None:
     assert config_fingerprint(cfg, [{**identity, "name": "b.png"}]) != a
 
 
+def test_config_fingerprint_includes_source_and_output_paths(tmp_path: Path) -> None:
+    """Different source or output paths must not share a resume fingerprint."""
+    identity = {"name": "p1.png", "size": 10, "mtime_ns": 123}
+    cfg_a = JobConfig(source_dir=tmp_path / "src_a", output_path=tmp_path / "out_a.pdf")
+    cfg_b = JobConfig(source_dir=tmp_path / "src_b", output_path=tmp_path / "out_a.pdf")
+    cfg_c = JobConfig(source_dir=tmp_path / "src_a", output_path=tmp_path / "out_b.pdf")
+    fingerprint_a = config_fingerprint(cfg_a, [identity])
+    assert config_fingerprint(cfg_b, [identity]) != fingerprint_a
+    assert config_fingerprint(cfg_c, [identity]) != fingerprint_a
+
+
 def test_run_job_rebuilds_when_page_content_changes(tmp_path: Path) -> None:
     """Rewriting an image under the same name invalidates resume skip."""
     source = _pages(tmp_path, count=1)
@@ -147,8 +158,37 @@ def test_transform_grayscale_keeps_mode_l(tmp_path: Path) -> None:
         stamp_page_numbers=True,
     )
     from bindery.models.page import PageFile
+    from bindery.orchestration.pipeline import _STAMP_FOOTER_BAND
 
     out = _transform_page(PageFile(path=page_path, index=0), cfg, work_dir)
     with Image.open(out) as image:
         assert image.mode == "L"
-        assert image.size == (24, 24)
+        # bottom band is raised to the stamp footer minimum
+        assert image.size == (24, 20 + 2 + _STAMP_FOOTER_BAND)
+
+
+def test_transform_stamp_with_zero_margin_reserves_footer_band(tmp_path: Path) -> None:
+    """Stamp jobs pad a footer band so numbers never overlay page content."""
+    source = tmp_path / "pages"
+    source.mkdir()
+    page_path = source / "p1.png"
+    # Full-bleed non-white content: overlay would be visible on content pixels.
+    Image.new("RGB", (40, 40), (10, 20, 30)).save(page_path)
+    work_dir = tmp_path / "work"
+    work_dir.mkdir()
+    cfg = JobConfig(
+        source_dir=source,
+        output_path=tmp_path / "book.pdf",
+        margins=MarginSpec.uniform(0),
+        stamp_page_numbers=True,
+    )
+    from bindery.models.page import PageFile
+    from bindery.orchestration.pipeline import _STAMP_FOOTER_BAND
+
+    out = _transform_page(PageFile(path=page_path, index=0), cfg, work_dir)
+    with Image.open(out) as image:
+        assert image.size == (40, 40 + _STAMP_FOOTER_BAND)
+        # Footer band starts after the original content row range.
+        footer_top = 40
+        row = [image.getpixel((x, footer_top + 2)) for x in range(40)]
+        assert any(pixel == (255, 255, 255) for pixel in row)
