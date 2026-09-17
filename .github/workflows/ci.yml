@@ -13,10 +13,11 @@ concurrency:
 jobs:
   quality:
     name: Lint, type, test
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
       matrix:
+        os: [ubuntu-latest, windows-latest]
         python-version: ["3.12"]
 
     steps:

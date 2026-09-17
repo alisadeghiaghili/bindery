@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Resume fingerprint now includes page size and mtime, so rewriting an image under the same filename rebuilds the PDF.
+- `--grayscale` / `JobConfig.grayscale` keeps intermediate pages as mode `L` instead of converting back to RGB.
+- Natural sort is total: `page_02.png` vs `page_2.png` no longer depend on directory iteration order.
+- `JobConfig` and `ensure_source_output_distinct` compare resolved paths (`pages` vs `./pages`).
+- Transform workdir uses an isolated system temp directory instead of a predictable path next to the output PDF.
+- `bindery doctor` reports `sys.platform` instead of `platform.platform()`, which can fatal-crash on Windows WMI probes.
+
+### Changed
+
+- Package root exports `JobConfig`, `JobReport`, and `run_job`.
+- CI quality gates run on Ubuntu and Windows.
+- `write_pdf` docstring matches implementation (img2pdf metadata kwargs; pypdf is validation-only).
+- Architecture doc allows adapters → domain and no longer describes a nonexistent models edge in the old diagram.
+- Removed empty `ocr` optional extra; `gui` extra remains reserved for a future PySide6 shell.
+
 ## [0.6.0] - 2026-09-10
 
 ### Added

@@ -28,16 +28,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=8.3",
-    "pytest-cov>=6.0",
-    "ruff>=0.9",
-    "mypy>=1.14",
-]
 gui = [
+    # Reserved for a future PySide6 shell. The shipped tkinter GUI needs no extra.
     "PySide6-Essentials>=6.11.2",
 ]
-ocr = []
 
 [project.scripts]
 bindery = "bindery.cli:main"
