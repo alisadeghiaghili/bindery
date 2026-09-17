@@ -209,7 +209,8 @@ def assemble_job(
             transformed,
             config.output_path,
             dpi=config.dpi,
-            title=config.output_path.stem,
+            title=config.title or config.output_path.stem,
+            author=config.author,
         )
     except OSError as exc:
         raise BinderyIOError(f"assemble failed: {exc}") from exc

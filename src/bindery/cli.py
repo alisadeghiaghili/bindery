@@ -33,6 +33,8 @@ build options:
   --grayscale           Convert pages to grayscale
   --stamp               Stamp 1-based page numbers in the footer
   --dpi N               PDF page geometry dpi (default 300)
+  --title TEXT          PDF document title (default: output file stem)
+  --author TEXT         PDF document author metadata
   --force               Rebuild even if output is up to date
 
 inspect:
@@ -198,6 +200,8 @@ def _cmd_build(args: list[str]) -> int:
     stamp = False
     dpi = 300
     force = False
+    title: str | None = None
+    author: str | None = None
 
     i = 1
     while i < len(args):
@@ -231,6 +235,16 @@ def _cmd_build(args: list[str]) -> int:
                 return 2
             i += 2
             continue
+        if token in ("--title", "--author"):
+            if i + 1 >= len(args):
+                print(f"bindery: {token} requires a value", file=sys.stderr)
+                return 2
+            if token == "--title":
+                title = args[i + 1]
+            else:
+                author = args[i + 1]
+            i += 2
+            continue
         if token == "--grayscale":
             grayscale = True
             i += 1
@@ -259,6 +273,8 @@ def _cmd_build(args: list[str]) -> int:
             stamp_page_numbers=stamp,
             dpi=dpi,
             force=force,
+            title=title,
+            author=author,
         )
         report = run_job(config, on_progress=_print_progress)
     except BinderyError as exc:

@@ -35,6 +35,20 @@ def test_job_config_defaults(tmp_path: Path) -> None:
     assert config.grayscale is False
     assert config.stamp_page_numbers is False
     assert config.dpi == 300
+    assert config.title is None
+    assert config.author is None
+
+
+def test_job_config_normalizes_title_and_author(tmp_path: Path) -> None:
+    """Blank metadata collapses to None; surrounding whitespace is stripped."""
+    config = JobConfig(
+        source_dir=tmp_path / "pages",
+        output_path=tmp_path / "book.pdf",
+        title="  My Book  ",
+        author="   ",
+    )
+    assert config.title == "My Book"
+    assert config.author is None
 
 
 def test_job_config_rejects_bad_dpi(tmp_path: Path) -> None:

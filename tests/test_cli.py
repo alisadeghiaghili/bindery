@@ -188,3 +188,57 @@ def test_build_negative_margin_maps_to_validation(
     code = main(["build", str(source), "-o", str(tmp_path / "o.pdf"), "--margin", "-2"])
     assert code == 3
     assert "margin" in capsys.readouterr().err.lower()
+
+
+def test_build_title_and_author_reach_pdf_metadata(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CLI --title/--author are written into PDF document info."""
+    from pypdf import PdfReader
+
+    source = tmp_path / "pages"
+    source.mkdir()
+    Image.new("RGB", (16, 16), (5, 5, 5)).save(source / "p1.png")
+    output = tmp_path / "book.pdf"
+    code = main(
+        [
+            "build",
+            str(source),
+            "-o",
+            str(output),
+            "--title",
+            "Field Notes",
+            "--author",
+            "Ali Sadeghi Aghili",
+        ]
+    )
+    capsys.readouterr()
+    assert code == 0
+    meta = PdfReader(output).metadata
+    assert meta is not None
+    assert "Field Notes" in (meta.title or meta.get("/Title") or "")
+    author = meta.author if hasattr(meta, "author") else meta.get("/Author")
+    assert author is not None
+    assert "Ali Sadeghi Aghili" in author
+
+
+def test_build_title_change_invalidates_resume(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Changing --title rebuilds instead of skipping stale metadata."""
+    source = tmp_path / "pages"
+    source.mkdir()
+    Image.new("RGB", (16, 16), (9, 9, 9)).save(source / "p1.png")
+    output = tmp_path / "book.pdf"
+    assert main(["build", str(source), "-o", str(output), "--title", "A"]) == 0
+    capsys.readouterr()
+    assert main(["build", str(source), "-o", str(output), "--title", "B"]) == 0
+    captured = capsys.readouterr()
+    assert "Wrote" in captured.out
+    assert "Up to date" not in captured.out
+
+
+def test_build_title_requires_value(capsys: pytest.CaptureFixture[str]) -> None:
+    """--title without a value is a usage error."""
+    assert main(["build", "pages", "-o", "out.pdf", "--title"]) == 2
+    assert "--title" in capsys.readouterr().err

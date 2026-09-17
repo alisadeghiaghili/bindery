@@ -45,15 +45,18 @@ def test_write_pdf_creates_parent_dirs(tmp_path: Path) -> None:
     assert out.is_file()
 
 
-def test_write_pdf_metadata_title(tmp_path: Path) -> None:
-    """Title metadata is embedded when provided."""
+def test_write_pdf_metadata_title_and_author(tmp_path: Path) -> None:
+    """Title and author metadata are embedded when provided."""
     pngs = _make_pngs(tmp_path / "in", 1)
     out = tmp_path / "book.pdf"
-    write_pdf(pngs, out, title="My Book")
+    write_pdf(pngs, out, title="My Book", author="Ali Sadeghi Aghili")
     reader = PdfReader(out)
     meta = reader.metadata
     assert meta is not None
     assert "My Book" in (meta.title or meta.get("/Title") or "")
+    author = meta.author if hasattr(meta, "author") else meta.get("/Author")
+    assert author is not None
+    assert "Ali Sadeghi Aghili" in author
 
 
 def test_write_pdf_missing_source_image(tmp_path: Path) -> None:
