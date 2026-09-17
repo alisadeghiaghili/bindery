@@ -14,6 +14,7 @@ from bindery.adapters.pdf import write_pdf
 from bindery.domain.geometry import normalize_margins
 from bindery.exceptions import BinderyIOError
 from bindery.models.config import JobConfig
+from bindery.models.crop import MarginSpec
 from bindery.models.page import PageFile
 from bindery.orchestration.manifest import (
     JobReport,
@@ -31,6 +32,9 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+#: Minimum bottom padding (px) reserved for footer stamps when user margins are thinner.
+_STAMP_FOOTER_BAND = 16
 
 
 def _emit(callback: ProgressCallback | None, event: ProgressEvent) -> None:
@@ -69,6 +73,14 @@ def _transform_page(
     image = load_image(page.path)
     try:
         margins = normalize_margins(config.margins, image.size)
+        if config.stamp_page_numbers and margins.bottom < _STAMP_FOOTER_BAND:
+            # Stamps must sit in a footer band, never on top of page content.
+            margins = MarginSpec(
+                left=margins.left,
+                top=margins.top,
+                right=margins.right,
+                bottom=_STAMP_FOOTER_BAND,
+            )
         image = pad_to_canvas(image, margins)
         if config.stamp_page_numbers:
             image = stamp_page_number(image, page_number=page.index + 1)
