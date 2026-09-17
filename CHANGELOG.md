@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CLI `--title` / `--author` and GUI Title/Author fields write PDF document metadata.
+- `JobConfig.title` / `JobConfig.author` (blank strings normalize to `None`).
+- Resume fingerprint includes title and author so metadata changes rebuild the PDF.
+
 ### Fixed
 
 - Resume fingerprint now includes page size and mtime, so rewriting an image under the same filename rebuilds the PDF.
@@ -15,11 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JobConfig` and `ensure_source_output_distinct` compare resolved paths (`pages` vs `./pages`).
 - Transform workdir uses an isolated system temp directory instead of a predictable path next to the output PDF.
 - `bindery doctor` reports `sys.platform` instead of `platform.platform()`, which can fatal-crash on Windows WMI probes.
+- PyInstaller spec no longer lists undeclared `pikepdf` as a hidden import.
 
 ### Changed
 
 - Package root exports `JobConfig`, `JobReport`, and `run_job`.
-- CI quality gates run on Ubuntu and Windows.
+- CI quality gates run on Ubuntu and Windows, Python 3.12 and 3.13.
+- Coverage policy: `fail_under=90` measures package surface excluding `gui.py` (tkinter shell; smoke-tested when Tcl/Tk loads).
 - `write_pdf` docstring matches implementation (img2pdf metadata kwargs; pypdf is validation-only).
 - Architecture doc allows adapters → domain and no longer describes a nonexistent models edge in the old diagram.
 - Removed empty `ocr` optional extra; `gui` extra remains reserved for a future PySide6 shell.

@@ -18,7 +18,8 @@ jobs:
       fail-fast: true
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.12"]
+        python-version: ["3.12", "3.13"]
+        # 3.13 is claimed by classifiers; matrix proves it.
 
     steps:
       - name: Check out repository
@@ -44,6 +45,8 @@ jobs:
       - name: Mypy
         run: uv run mypy src
 
+      # Coverage gate (fail_under=90) excludes gui.py — see pyproject.toml.
+      # GUI smoke tests still run; they skip if Tcl/Tk is missing.
       - name: Pytest
         run: uv run pytest --cov=bindery --cov-report=term-missing
 

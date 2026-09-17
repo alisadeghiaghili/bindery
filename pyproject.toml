@@ -114,12 +114,22 @@ filterwarnings = ["error"]
 [tool.coverage.run]
 branch = true
 source = ["bindery"]
-omit = ["src/bindery/__main__.py"]
+omit = [
+    "src/bindery/__main__.py",
+    # Coverage gate measures the library/CLI surface. `gui.py` is a thin
+    # tkinter shell exercised by smoke tests when Tcl/Tk is present; hosts
+    # without Tk (common for uv-managed Linux Pythons) skip those tests and
+    # would otherwise fail the gate without any product regression.
+    "src/bindery/gui.py",
+]
 
 [tool.coverage.report]
 fail_under = 90
 show_missing = true
 skip_covered = false
+# Policy: fail_under=90 applies to bindery minus gui.py (see omit above).
+# GUI smoke tests still run wherever Tk loads; do not use this omit to
+# hide missing coverage in domain, adapters, orchestration, or CLI.
 exclude_also = [
     "if __name__ == .__main__.:",
     "raise SystemExit",
