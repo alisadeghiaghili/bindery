@@ -7,12 +7,14 @@ from pathlib import Path
 from PIL import Image
 
 from bindery.models.config import JobConfig
+from bindery.models.crop import MarginSpec
 from bindery.orchestration.manifest import (
     ResumeManifest,
     config_fingerprint,
     manifest_path_for,
+    page_identity,
 )
-from bindery.orchestration.pipeline import run_job
+from bindery.orchestration.pipeline import _transform_page, run_job
 from bindery.orchestration.progress import ProgressEvent
 
 
@@ -55,18 +57,35 @@ def test_manifest_path_for() -> None:
 
 
 def test_config_fingerprint_stable_and_sensitive(tmp_path: Path) -> None:
-    """Same inputs same hash; changing dpi changes hash."""
+    """Same inputs same hash; changing dpi or page content changes hash."""
     cfg = JobConfig(source_dir=tmp_path / "pages", output_path=tmp_path / "book.pdf")
-    a = config_fingerprint(cfg, ["a.png"])
-    b = config_fingerprint(cfg, ["a.png"])
+    page = tmp_path / "a.png"
+    page.write_bytes(b"one")
+    identity = page_identity(page)
+    a = config_fingerprint(cfg, [identity])
+    b = config_fingerprint(cfg, [identity])
     assert a == b
     cfg2 = JobConfig(
         source_dir=cfg.source_dir,
         output_path=cfg.output_path,
         dpi=cfg.dpi + 1,
     )
-    assert config_fingerprint(cfg2, ["a.png"]) != a
-    assert config_fingerprint(cfg, ["b.png"]) != a
+    assert config_fingerprint(cfg2, [identity]) != a
+    page.write_bytes(b"two-longer")
+    assert config_fingerprint(cfg, [page_identity(page)]) != a
+    assert config_fingerprint(cfg, [{**identity, "name": "b.png"}]) != a
+
+
+def test_run_job_rebuilds_when_page_content_changes(tmp_path: Path) -> None:
+    """Rewriting an image under the same name invalidates resume skip."""
+    source = _pages(tmp_path, count=1)
+    page = next(source.iterdir())
+    out = tmp_path / "book.pdf"
+    first = run_job(JobConfig(source_dir=source, output_path=out))
+    assert first.skipped is False
+    Image.new("RGB", (24, 24), (0, 90, 200)).save(page)
+    second = run_job(JobConfig(source_dir=source, output_path=out))
+    assert second.skipped is False
 
 
 def test_run_job_emits_progress_stages(tmp_path: Path) -> None:
@@ -110,3 +129,26 @@ def test_run_job_rebuilds_when_config_changes(tmp_path: Path) -> None:
     run_job(JobConfig(source_dir=source, output_path=out))
     report = run_job(JobConfig(source_dir=source, output_path=out, grayscale=True))
     assert report.skipped is False
+
+
+def test_transform_grayscale_keeps_mode_l(tmp_path: Path) -> None:
+    """Grayscale jobs write intermediate PNGs as mode L, not RGB."""
+    source = tmp_path / "pages"
+    source.mkdir()
+    page_path = source / "p1.png"
+    Image.new("RGB", (20, 20), (200, 0, 0)).save(page_path)
+    work_dir = tmp_path / "work"
+    work_dir.mkdir()
+    cfg = JobConfig(
+        source_dir=source,
+        output_path=tmp_path / "book.pdf",
+        grayscale=True,
+        margins=MarginSpec.uniform(2),
+        stamp_page_numbers=True,
+    )
+    from bindery.models.page import PageFile
+
+    out = _transform_page(PageFile(path=page_path, index=0), cfg, work_dir)
+    with Image.open(out) as image:
+        assert image.mode == "L"
+        assert image.size == (24, 24)

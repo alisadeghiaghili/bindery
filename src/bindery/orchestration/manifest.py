@@ -16,6 +16,7 @@ __all__ = [
     "ResumeManifest",
     "config_fingerprint",
     "manifest_path_for",
+    "page_identity",
 ]
 
 
@@ -59,12 +60,42 @@ def manifest_path_for(output_path: Path) -> Path:
     return Path(output_path).with_suffix(Path(output_path).suffix + ".bindery.json")
 
 
-def config_fingerprint(config: JobConfig, page_names: list[str]) -> str:
-    """Hash job settings and ordered page names for resume decisions.
+def page_identity(path: Path) -> dict[str, int | str]:
+    """Return name, size, and mtime for one page file.
+
+    Args:
+        path: Existing page image path.
+
+    Returns:
+        dict: Identity fields used by :func:`config_fingerprint`.
+
+    Raises:
+        OSError: If the path cannot be stat'ed.
+
+    Examples:
+        >>> callable(page_identity)
+        True
+    """
+    stat = Path(path).stat()
+    return {
+        "name": Path(path).name,
+        "size": int(stat.st_size),
+        "mtime_ns": int(stat.st_mtime_ns),
+    }
+
+
+def config_fingerprint(
+    config: JobConfig,
+    page_identities: list[dict[str, int | str]],
+) -> str:
+    """Hash job settings and ordered page content identities.
+
+    The payload includes each page's name, size, and mtime so that rewriting
+    an image under the same filename invalidates a resume skip.
 
     Args:
         config: Active job configuration.
-        page_names: Page file names in assemble order.
+        page_identities: Per-page identity dicts in assemble order.
 
     Returns:
         str: Hex digest of a stable JSON payload.
@@ -73,7 +104,8 @@ def config_fingerprint(config: JobConfig, page_names: list[str]) -> str:
         >>> from pathlib import Path
         >>> from bindery.models.config import JobConfig
         >>> cfg = JobConfig(source_dir=Path("pages"), output_path=Path("book.pdf"))
-        >>> len(config_fingerprint(cfg, ["a.png"])) == 64
+        >>> payload = [{"name": "a.png", "size": 1, "mtime_ns": 2}]
+        >>> len(config_fingerprint(cfg, payload)) == 64
         True
     """
     payload: dict[str, Any] = {
@@ -81,7 +113,7 @@ def config_fingerprint(config: JobConfig, page_names: list[str]) -> str:
         "grayscale": config.grayscale,
         "stamp_page_numbers": config.stamp_page_numbers,
         "margins": config.margins.as_inset(),
-        "pages": list(page_names),
+        "pages": list(page_identities),
     }
     blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()

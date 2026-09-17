@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
+import shutil
+import tempfile
 import time
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from bindery.orchestration.manifest import (
     ResumeManifest,
     config_fingerprint,
     manifest_path_for,
+    page_identity,
 )
 from bindery.orchestration.progress import ProgressCallback, ProgressEvent
 
@@ -68,10 +70,10 @@ def _transform_page(
     try:
         margins = normalize_margins(config.margins, image.size)
         image = pad_to_canvas(image, margins)
-        if config.grayscale:
-            image = to_grayscale(image).convert("RGB")
         if config.stamp_page_numbers:
             image = stamp_page_number(image, page_number=page.index + 1)
+        if config.grayscale:
+            image = to_grayscale(image)
         out = work_dir / f"{page.index:05d}.png"
         image.save(out, format="PNG")
     finally:
@@ -79,12 +81,12 @@ def _transform_page(
     return out
 
 
-def _should_skip(config: JobConfig, page_names: list[str]) -> bool:
+def _should_skip(config: JobConfig, page_identities: list[dict[str, int | str]]) -> bool:
     """Return True when output is up to date and force is off.
 
     Args:
         config: Active job settings.
-        page_names: Ordered page names for this run.
+        page_identities: Ordered page content identities for this run.
 
     Returns:
         bool: True if the existing PDF can be reused.
@@ -97,8 +99,8 @@ def _should_skip(config: JobConfig, page_names: list[str]) -> bool:
     if manifest is None:
         return False
     return manifest.fingerprint == config_fingerprint(
-        config, page_names
-    ) and manifest.page_count == len(page_names)
+        config, page_identities
+    ) and manifest.page_count == len(page_identities)
 
 
 def assemble_job(
@@ -141,7 +143,7 @@ def assemble_job(
     """
     started = time.perf_counter()
     pages = discover_page_files(config.source_dir)
-    page_names = [p.name for p in pages]
+    page_identities = [page_identity(page.path) for page in pages]
     _emit(
         on_progress,
         ProgressEvent(
@@ -152,8 +154,8 @@ def assemble_job(
         ),
     )
 
-    fingerprint = config_fingerprint(config, page_names)
-    if _should_skip(config, page_names):
+    fingerprint = config_fingerprint(config, page_identities)
+    if _should_skip(config, page_identities):
         logger.info("skipping rebuild; output is up to date: %s", config.output_path)
         _emit(
             on_progress,
@@ -171,8 +173,7 @@ def assemble_job(
             skipped=True,
         )
 
-    work_dir = config.output_path.parent / f".bindery-work-{config.output_path.stem}"
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = Path(tempfile.mkdtemp(prefix=f"bindery-{config.output_path.stem}-"))
     transformed: list[Path] = []
     try:
         for page in pages:
@@ -213,11 +214,7 @@ def assemble_job(
     except OSError as exc:
         raise BinderyIOError(f"assemble failed: {exc}") from exc
     finally:
-        for path in transformed:
-            with contextlib.suppress(OSError):
-                path.unlink(missing_ok=True)
-        with contextlib.suppress(OSError):
-            work_dir.rmdir()
+        shutil.rmtree(work_dir, ignore_errors=True)
 
     ResumeManifest(fingerprint=fingerprint, page_count=len(pages)).save(
         manifest_path_for(config.output_path)
