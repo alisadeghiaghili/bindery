@@ -53,11 +53,12 @@ def load_image(path: Path) -> Image.Image:
 
 
 def pad_to_canvas(image: Image.Image, margins: MarginSpec) -> Image.Image:
-    """Expand ``image`` with white (or black for L) margins.
+    """Expand ``image`` with white margins.
 
     Args:
-        image: Source image (any mode; alpha is dropped by prior RGB convert).
-        margins: Non-negative pixel padding per edge.
+        image: Source image (any mode). Alpha is dropped by prior RGB convert
+            in :func:`load_image`.
+        margins: Non-negative pixel padding per edge. Fill is white.
 
     Returns:
         PIL.Image.Image: New padded image; input is not mutated.

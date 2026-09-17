@@ -63,9 +63,9 @@ def write_pdf(
 ) -> Path:
     """Assemble images into a single multi-page PDF in one write.
 
-    Pages are embedded losslessly. Metadata is applied in a second in-memory
-    pass only when ``title`` or ``author`` is set — the on-disk PDF is written
-    once (plus a replace when metadata is added).
+    Pages are embedded losslessly via img2pdf. Optional ``title`` and
+    ``author`` are passed to img2pdf as document metadata kwargs. ``pypdf`` is
+    used only to verify the written page count.
 
     Args:
         image_paths: Source images in page order. Must be non-empty.
