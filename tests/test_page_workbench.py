@@ -236,7 +236,8 @@ def test_cli_help_lists_preview(capsys) -> None:
 
 
 def test_gui_smoke_still_imports() -> None:
-    """GUI module remains importable."""
+    """GUI module remains importable when Tcl/Tk is present."""
+    pytest.importorskip("tkinter")
     from bindery.gui import BinderyApp
 
     assert callable(BinderyApp)
