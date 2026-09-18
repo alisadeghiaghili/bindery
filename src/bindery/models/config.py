@@ -7,6 +7,7 @@ from pathlib import Path
 
 from bindery.exceptions import BinderyValidationError
 from bindery.models.crop import CropBox, MarginSpec
+from bindery.models.jobfile import SourceSpec
 from bindery.models.page_size import parse_page_size
 
 __all__ = ["JobConfig"]
@@ -14,6 +15,7 @@ __all__ = ["JobConfig"]
 _DEFAULT_DPI = 300
 _ALLOWED_ROTATE = frozenset({0, 90, 180, 270})
 _ALLOWED_COMPRESS = frozenset({"lossless", "jpeg"})
+_ALLOWED_BOOKMARKS = frozenset({"none", "filenames", "chapters"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,7 +23,7 @@ class JobConfig:
     """Immutable description of one assemble job.
 
     Attributes:
-        source_dir: Directory containing page images.
+        source_dir: Primary directory containing page images.
         output_path: Destination PDF path (parent dirs may not exist yet).
         margins: Padding applied around each page.
         grayscale: Convert pages to 8-bit grayscale before writing.
@@ -36,16 +38,18 @@ class JobConfig:
             (``a4``/``letter``) or ``WIDTHxHEIGHT`` in PDF points.
         compress: ``lossless`` (PNG embed) or ``jpeg`` (JPEG embed).
         jpeg_quality: JPEG quality 1-95 when ``compress='jpeg'``.
-        page_names: Optional explicit assemble order (subset of source names).
-            ``None`` uses natural sort of all discovered images.
+        page_names: Optional explicit assemble order (subset of source names)
+            when ``sources`` is ``None``.
+        extra_sources: Additional directories appended after ``source_dir``.
+        sources: Full multi-source specs (job files). When set, overrides
+            ``source_dir``/``extra_sources``/``page_names`` discovery.
+        bookmark_mode: ``none``, ``filenames``, or ``chapters``.
 
     Examples:
         >>> from pathlib import Path
         >>> cfg = JobConfig(source_dir=Path("pages"), output_path=Path("book.pdf"))
-        >>> cfg.dpi, cfg.rotate, cfg.compress
-        (300, 0, 'lossless')
-        >>> cfg.crop is None and cfg.page_names is None
-        True
+        >>> cfg.bookmark_mode, cfg.extra_sources
+        ('none', ())
     """
 
     source_dir: Path
@@ -63,6 +67,10 @@ class JobConfig:
     compress: str = "lossless"
     jpeg_quality: int = 85
     page_names: tuple[str, ...] | None = None
+    exclude_names: tuple[str, ...] | None = None
+    extra_sources: tuple[Path, ...] = ()
+    sources: tuple[SourceSpec, ...] | None = None
+    bookmark_mode: str = "none"
 
     def __post_init__(self) -> None:
         """Coerce paths, metadata, rotation, compress, and page size.
@@ -120,6 +128,35 @@ class JobConfig:
             if len(set(names)) != len(names):
                 raise BinderyValidationError("page_names must not contain duplicates")
             object.__setattr__(self, "page_names", names)
+
+        if self.exclude_names is not None:
+            excl = tuple(str(n) for n in self.exclude_names)
+            if any(not n for n in excl):
+                raise BinderyValidationError("exclude_names must be non-empty")
+            object.__setattr__(self, "exclude_names", excl)
+
+        extras = tuple(Path(p) for p in self.extra_sources)
+        object.__setattr__(self, "extra_sources", extras)
+
+        if self.sources is not None:
+            specs = tuple(self.sources)
+            if not specs:
+                raise BinderyValidationError("sources must be non-empty when provided")
+            object.__setattr__(self, "sources", specs)
+            primary = specs[0].path
+            object.__setattr__(self, "source_dir", primary)
+            object.__setattr__(
+                self,
+                "extra_sources",
+                tuple(spec.path for spec in specs[1:]),
+            )
+
+        bookmark_mode = str(self.bookmark_mode).strip().lower()
+        if bookmark_mode not in _ALLOWED_BOOKMARKS:
+            raise BinderyValidationError(
+                f"bookmark_mode must be one of {sorted(_ALLOWED_BOOKMARKS)}, got {self.bookmark_mode!r}"
+            )
+        object.__setattr__(self, "bookmark_mode", bookmark_mode)
 
     @staticmethod
     def _normalize_metadata(value: str | None) -> str | None:

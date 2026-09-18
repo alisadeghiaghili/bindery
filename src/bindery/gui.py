@@ -55,6 +55,7 @@ class BinderyApp:
         self._rotate_var = tk.StringVar(value="0")
         self._page_size_var = tk.StringVar()
         self._compress_var = tk.StringVar(value="lossless")
+        self._bookmarks_var = tk.StringVar(value="none")
         self._status_var = tk.StringVar(value="Ready")
         self._page_entries: list[dict[str, Any]] = []
         self._preview_photo: Any = None
@@ -126,6 +127,14 @@ class BinderyApp:
             width=8,
             state="readonly",
         ).grid(row=1, column=1, padx=4)
+        ttk.Label(opts, text="Bookmarks").grid(row=1, column=5, padx=4)
+        ttk.Combobox(
+            opts,
+            textvariable=self._bookmarks_var,
+            values=("none", "filenames", "chapters"),
+            width=10,
+            state="readonly",
+        ).grid(row=1, column=6, padx=4)
         ttk.Checkbutton(opts, text="Grayscale", variable=self._grayscale_var).grid(
             row=1, column=2, padx=4
         )
@@ -330,6 +339,7 @@ class BinderyApp:
             page_size=self._page_size_var.get().strip() or None,
             compress=self._compress_var.get() or "lossless",
             page_names=page_names,
+            bookmark_mode=self._bookmarks_var.get() or "none",
         )
 
     def _start(self) -> None:

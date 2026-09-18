@@ -109,6 +109,16 @@ def config_fingerprint(
     crop_payload = None
     if crop is not None:
         crop_payload = [crop.left, crop.top, crop.right, crop.bottom]
+    sources_payload = None
+    if config.sources is not None:
+        sources_payload = [
+            {
+                "path": str(spec.path.resolve()),
+                "pages": list(spec.page_names) if spec.page_names else None,
+                "exclude": list(spec.exclude) if spec.exclude else None,
+            }
+            for spec in config.sources
+        ]
     payload: dict[str, Any] = {
         "dpi": config.dpi,
         "grayscale": config.grayscale,
@@ -124,6 +134,10 @@ def config_fingerprint(
         "compress": config.compress,
         "jpeg_quality": config.jpeg_quality if config.compress == "jpeg" else None,
         "page_names": list(config.page_names) if config.page_names is not None else None,
+        "exclude_names": list(config.exclude_names) if config.exclude_names is not None else None,
+        "extra_sources": [str(Path(p).resolve()) for p in config.extra_sources],
+        "sources": sources_payload,
+        "bookmark_mode": config.bookmark_mode,
         "pages": list(page_identities),
     }
     blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")

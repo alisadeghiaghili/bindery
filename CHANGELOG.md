@@ -7,15 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-18
+
 ### Added
 
 - Crop and rotate on the assemble path: `JobConfig.crop` / `JobConfig.rotate`, CLI `--crop L,T,R,B` and `--rotate DEG`.
 - Fixed page geometry: `--page-size a4|letter|WIDTHxHEIGHT` (PDF points) letterboxes pages at job `dpi`.
 - Compression profiles: `--compress lossless|jpeg` and `--jpeg-quality` (JPEG embed vs PNG embed).
 - Explicit page order/filter: `JobConfig.page_names`, CLI `--pages` / `--exclude`.
+- Multi-source chapters: `JobConfig.extra_sources` / `JobConfig.sources`, CLI `--extra-source DIR` (repeatable).
+- Job files: `bindery job JOBFILE.toml|json` with optional `--dry-run` to list planned pages/chapters.
+- PDF bookmarks/outline: `--bookmarks none|filenames|chapters` (GUI combo included).
 - `bindery preview SOURCE -o IMAGE` writes one transformed page for inspection.
-- GUI: page list with include/exclude + reorder, rotate/page-size/compress controls, first-page preview thumbnail.
-- Resume fingerprint covers crop, rotate, page size, compress, and explicit page order.
+- GUI: page list with include/exclude + reorder, rotate/page-size/compress/bookmark controls, first-page preview thumbnail.
+- Resume fingerprint covers crop, rotate, page size, compress, page order, extra sources, job sources, and bookmark mode.
+
+### Changed
+
+- Transform order is crop → rotate → pad/stamp band → grayscale → page-size letterbox → save.
+- Discovery walks primary source then `extra_sources` / job-file `sources` in order, with per-source `pages`/`exclude`.
 
 ## [0.7.1] - 2026-09-18
 
@@ -63,60 +73,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Desktop GUI (`bindery gui`) using tkinter, stdlib only.
 - GUI calls the same `run_job` pipeline; worker thread + progress queue.
 - Cooperative cancel, progress bar, log panel, margin/dpi/options form.
-- Optional extra `bindery[gui]` reserved for future PySide6 shell; current GUI needs no extra install.
-
-### Notes
-
-- PySide6 was evaluated but not adopted for v0.6: multi-hundred-MB wheels are unnecessary for this form. tkinter keeps the GUI dependency-free.
 
 ## [0.5.0] - 2026-09-10
 
 ### Added
 
-- `bindery inspect SOURCE`: list pages in assemble order with pixel sizes.
-- `bindery doctor`: report Python, bindery, Pillow, img2pdf, pypdf health.
-- Usage text covers all commands.
+- `bindery inspect SOURCE` and `bindery doctor`.
 
 ## [0.4.0] - 2026-09-10
 
 ### Added
 
-- Progress events (`ProgressEvent`, `ProgressCallback`) emitted from the pipeline.
-- CLI progress lines on stderr during transform/assemble.
-- Resume manifest sidecar (`*.pdf.bindery.json`) with config fingerprint.
-- Idempotent rebuild: identical job skips and prints `Up to date`.
-- `--force` / `JobConfig.force` to rebuild when needed.
-- Structured timing log after a successful write.
+- Progress events, resume manifest, `--force`, timing log.
 
 ## [0.3.1] - 2026-09-10
 
 ### Fixed
 
-- PDF page geometry now honors `--dpi` / `JobConfig.dpi` via an img2pdf `layout_fun`.
-- Previously img2pdf 0.6.x silently ignored the convert `dpi` kwarg and always used 96.
-- Pages smaller than 3pt after dpi conversion are scaled up so viewers accept them.
+- PDF page geometry honors dpi via img2pdf `layout_fun`.
 
 ## [0.3.0] - 2026-09-10
 
 ### Added
 
-- Adapters: image discovery (`fs`), Pillow transforms (`images`), PDF assembly (`pdf`).
-- Orchestration: `assemble_job` / `run_job` with temp workspace cleanup.
-- CLI: `bindery build SOURCE -o OUTPUT [--margin N] [--grayscale] [--stamp] [--dpi N]`.
-- Exit codes: `0` ok, `2` usage, `3` validation, `4` I/O.
-- Windows console executable `bindery.exe` (PyInstaller, attached to GitHub Releases).
-- Integration tests for end-to-end assemble.
-
-### Dependencies
-
-- `pillow`, `img2pdf`, `pypdf` (runtime); `pyinstaller` (dev).
+- Adapters, orchestration, CLI `build`, Windows exe.
 
 ## [0.2.0] - 2026-09-10
 
 ### Added
 
-- Domain models and geometry helpers.
-- Project scaffolding, Apache-2.0 license, contributing guide.
+- Domain models and project scaffolding.
 
 ## [0.1.0] - 2026-09-10
 
@@ -124,8 +110,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial package skeleton.
 
-<!-- compare links -->
-[Unreleased]: https://github.com/alisadeghiaghili/bindery/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/alisadeghiaghili/bindery/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/alisadeghiaghili/bindery/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/alisadeghiaghili/bindery/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/alisadeghiaghili/bindery/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/alisadeghiaghili/bindery/compare/v0.5.0...v0.6.0

@@ -15,6 +15,7 @@ from bindery.adapters.images import load_image
 from bindery.exceptions import BinderyError, BinderyValidationError
 from bindery.models.config import JobConfig
 from bindery.models.crop import CropBox, MarginSpec
+from bindery.models.job_config_file import job_config_from_file
 from bindery.models.page import PageFile
 from bindery.models.page_size import parse_page_size
 from bindery.orchestration.pipeline import run_job, select_pages, transform_page
@@ -28,6 +29,7 @@ Usage:
   bindery --help
   bindery build SOURCE -o OUTPUT [options]
   bindery preview SOURCE -o IMAGE [options]
+  bindery job JOBFILE [--dry-run]
   bindery inspect SOURCE
   bindery doctor
   bindery gui
@@ -49,8 +51,14 @@ build / preview options:
   --jpeg-quality N      JPEG quality 1-95 (default 85; jpeg only)
   --pages N1,N2,...     Explicit page file names in assemble order
   --exclude N1,N2,...   Drop these file names after discovery
+  --extra-source DIR    Additional source directory (repeatable)
+  --bookmarks MODE      none | filenames | chapters (default none)
   --page N              Preview only: 1-based page index (default 1)
   --force               Rebuild even if output is up to date (build)
+
+job:
+  Run a .toml/.json job file (multi-source chapters supported).
+  --dry-run lists planned pages/options without writing a PDF.
 
 inspect:
   List pages in assemble order with pixel sizes.
@@ -366,6 +374,19 @@ def _add_transform_arguments(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Page names to drop after discovery",
     )
+    parser.add_argument(
+        "--extra-source",
+        action="append",
+        default=None,
+        dest="extra_sources",
+        help="Additional source directory (repeatable)",
+    )
+    parser.add_argument(
+        "--bookmarks",
+        choices=("none", "filenames", "chapters"),
+        default="none",
+        help="PDF outline mode",
+    )
 
 
 def _build_arg_parser() -> _BuildArgumentParser:
@@ -494,8 +515,9 @@ def _cmd_build(args: list[str]) -> int:
     try:
         if ns.page_size is not None:
             parse_page_size(ns.page_size)
-        discovered = discover_page_files(ns.source)
-        page_names = _resolve_page_names(discovered, ns.pages, ns.exclude)
+        page_names = ns.pages
+        extra = tuple(Path(p) for p in (ns.extra_sources or ()))
+        exclude_names = ns.exclude
         config = JobConfig(
             source_dir=ns.source,
             output_path=ns.output,
@@ -512,6 +534,9 @@ def _cmd_build(args: list[str]) -> int:
             compress=ns.compress,
             jpeg_quality=ns.jpeg_quality,
             page_names=page_names,
+            exclude_names=exclude_names,
+            extra_sources=extra,
+            bookmark_mode=ns.bookmarks,
         )
         report = run_job(config, on_progress=_print_progress)
     except BinderyError as exc:
@@ -601,6 +626,72 @@ def _cmd_preview(args: list[str]) -> int:
     return 0
 
 
+def _cmd_job(args: list[str]) -> int:
+    """Run ``bindery job`` from a job file.
+
+    Args:
+        args: Arguments after ``job``. Expects JOBFILE and optional ``--dry-run``.
+
+    Returns:
+        int: ``0`` success, ``2`` usage, ``3`` validation, ``4`` I/O.
+    """
+    if not args:
+        print("bindery: job requires a JOBFILE path", file=sys.stderr)
+        print(_USAGE, file=sys.stderr)
+        return 2
+    dry_run = False
+    job_path: Path | None = None
+    for token in args:
+        if token == "--dry-run":
+            dry_run = True
+            continue
+        if token.startswith("-"):
+            print(f"bindery: unknown job option: {token}", file=sys.stderr)
+            return 2
+        if job_path is not None:
+            print("bindery: job accepts a single JOBFILE", file=sys.stderr)
+            return 2
+        job_path = Path(token)
+    if job_path is None:
+        print("bindery: job requires a JOBFILE path", file=sys.stderr)
+        return 2
+
+    try:
+        config = job_config_from_file(job_path)
+        if dry_run:
+            from bindery.orchestration.pipeline import discover_job_pages
+
+            pages, chapter_starts, chapter_labels = discover_job_pages(config)
+            print(f"job: {job_path}")
+            print(f"output: {config.output_path}")
+            print(f"sources: {1 + len(config.extra_sources)}")
+            print(f"bookmarks: {config.bookmark_mode}")
+            print(f"compress: {config.compress} dpi={config.dpi} rotate={config.rotate}")
+            print(f"page_size: {config.page_size}")
+            print(f"pages: {len(pages)}")
+            for label, start in zip(chapter_labels, chapter_starts, strict=True):
+                print(f"  chapter[{start}] {label}")
+            for page in pages:
+                print(f"  {page.index + 1:4d}. {page.name}  ({page.path.parent.name})")
+            return 0
+        report = run_job(config, on_progress=_print_progress)
+    except FileNotFoundError:
+        print(f"bindery: job file not found: {job_path}", file=sys.stderr)
+        return 4
+    except BinderyError as exc:
+        print(f"bindery: {exc}", file=sys.stderr)
+        name = type(exc).__name__
+        if "Validation" in name or "Config" in name:
+            return 3
+        return 4
+
+    if report.skipped:
+        print(f"Up to date: {report.output_path} ({report.page_count} pages)")
+    else:
+        print(f"Wrote {report.output_path} ({report.page_count} pages)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the bindery CLI.
 
@@ -613,7 +704,7 @@ def main(argv: list[str] | None = None) -> int:
 
     Examples:
         >>> main(["--version"])  # doctest: +SKIP
-        bindery 0.7.1
+        bindery 0.8.0
         0
     """
     args = list(sys.argv[1:] if argv is None else argv)
@@ -631,6 +722,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args[0] == "preview":
         return _cmd_preview(args[1:])
+
+    if args[0] == "job":
+        return _cmd_job(args[1:])
 
     if args[0] == "inspect":
         return _cmd_inspect(args[1:])
