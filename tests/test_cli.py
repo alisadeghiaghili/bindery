@@ -242,3 +242,28 @@ def test_build_title_requires_value(capsys: pytest.CaptureFixture[str]) -> None:
     """--title without a value is a usage error."""
     assert main(["build", "pages", "-o", "out.pdf", "--title"]) == 2
     assert "--title" in capsys.readouterr().err
+
+
+def test_print_progress_stages_emit_stderr(capsys: pytest.CaptureFixture[str]) -> None:
+    """Progress callback renders each pipeline stage on stderr."""
+    from bindery.cli import _print_progress
+    from bindery.orchestration.progress import ProgressEvent
+
+    _print_progress(ProgressEvent(stage="transform", completed=1, total=2, current="a.png"))
+    _print_progress(ProgressEvent(stage="transform", completed=2, total=2, current=None))
+    _print_progress(ProgressEvent(stage="discover", completed=1, total=1, message="found 1"))
+    _print_progress(ProgressEvent(stage="assemble", completed=0, total=1, current="book.pdf"))
+    _print_progress(ProgressEvent(stage="skipped", completed=1, total=1, message="up to date"))
+    _print_progress(ProgressEvent(stage="done", completed=1, total=1, message="1 pages"))
+    err = capsys.readouterr().err
+    assert "[transform 1/2]" in err
+    assert "[discover]" in err
+    assert "[assemble]" in err
+    assert "[skip]" in err
+    assert "[done]" in err
+
+
+def test_build_invalid_title_requires_author_flag(capsys: pytest.CaptureFixture[str]) -> None:
+    """--author without a value is a usage error."""
+    assert main(["build", "pages", "-o", "out.pdf", "--author"]) == 2
+    assert "--author" in capsys.readouterr().err

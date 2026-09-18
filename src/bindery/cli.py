@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import NoReturn
 
 from bindery import get_version
 from bindery.adapters.fs import discover_page_files
@@ -179,6 +182,91 @@ def _cmd_doctor() -> int:
     return 0
 
 
+def _int_or_cli_error(flag: str) -> Callable[[str], int]:
+    """Build an argparse type that rejects non-integers with bindery wording.
+
+    Args:
+        flag: CLI flag name used in the error message (e.g. ``--margin``).
+
+    Returns:
+        Callable[[str], int]: Converter suitable for ``argparse`` ``type=``.
+
+    Examples:
+        >>> fn = _int_or_cli_error("--margin")
+        >>> fn("3")
+        3
+    """
+
+    def _parse(value: str) -> int:
+        try:
+            return int(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"invalid {flag} value: {value}") from None
+
+    return _parse
+
+
+class _BuildArgumentParser(argparse.ArgumentParser):
+    """Argument parser that prints bindery usage errors and exits ``2``."""
+
+    def error(self, message: str) -> NoReturn:
+        """Print a usage error on stderr and exit with code ``2``.
+
+        Args:
+            message: argparse error text; unrecognized flags are reworded.
+
+        Examples:
+            >>> isinstance(_BuildArgumentParser(prog="bindery"), argparse.ArgumentParser)
+            True
+        """
+        lower = message.lower()
+        if "unrecognized arguments" in lower:
+            unknown = message.split(":", 1)[-1].strip()
+            message = f"unknown build option: {unknown}"
+        elif "invalid int value" in lower:
+            message = message.replace("invalid int value", "invalid value")
+        print(f"bindery: {message}", file=sys.stderr)
+        print(_USAGE, file=sys.stderr)
+        raise SystemExit(2)
+
+
+def _build_arg_parser() -> _BuildArgumentParser:
+    """Create the argparse parser for ``bindery build``.
+
+    Returns:
+        _BuildArgumentParser: Parser configured for the build verb.
+
+    Examples:
+        >>> _build_arg_parser().prog
+        'bindery-build'
+    """
+    parser = _BuildArgumentParser(
+        prog="bindery-build",
+        add_help=False,
+        description="Assemble a folder of page images into a single PDF.",
+    )
+    parser.add_argument("source", type=Path, help="Directory containing page images")
+    parser.add_argument("-o", "--output", type=Path, required=True, help="Output PDF path")
+    parser.add_argument(
+        "--margin",
+        type=_int_or_cli_error("--margin"),
+        default=0,
+        help="Uniform margin in pixels (default 0)",
+    )
+    parser.add_argument("--grayscale", action="store_true", help="Convert pages to grayscale")
+    parser.add_argument("--stamp", action="store_true", help="Stamp 1-based page numbers")
+    parser.add_argument(
+        "--dpi",
+        type=_int_or_cli_error("--dpi"),
+        default=300,
+        help="PDF page geometry dpi (default 300)",
+    )
+    parser.add_argument("--title", type=str, default=None, help="PDF document title")
+    parser.add_argument("--author", type=str, default=None, help="PDF document author")
+    parser.add_argument("--force", action="store_true", help="Rebuild even if up to date")
+    return parser
+
+
 def _cmd_build(args: list[str]) -> int:
     """Parse ``build`` arguments and run one job.
 
@@ -193,88 +281,24 @@ def _cmd_build(args: list[str]) -> int:
         print(_USAGE, file=sys.stderr)
         return 2
 
-    source = Path(args[0])
-    output: Path | None = None
-    margin = 0
-    grayscale = False
-    stamp = False
-    dpi = 300
-    force = False
-    title: str | None = None
-    author: str | None = None
-
-    i = 1
-    while i < len(args):
-        token = args[i]
-        if token in ("-o", "--output"):
-            if i + 1 >= len(args):
-                print("bindery: --output requires a path", file=sys.stderr)
-                return 2
-            output = Path(args[i + 1])
-            i += 2
-            continue
-        if token == "--margin":
-            if i + 1 >= len(args):
-                print("bindery: --margin requires an integer", file=sys.stderr)
-                return 2
-            try:
-                margin = int(args[i + 1])
-            except ValueError:
-                print(f"bindery: invalid --margin value: {args[i + 1]}", file=sys.stderr)
-                return 2
-            i += 2
-            continue
-        if token == "--dpi":
-            if i + 1 >= len(args):
-                print("bindery: --dpi requires an integer", file=sys.stderr)
-                return 2
-            try:
-                dpi = int(args[i + 1])
-            except ValueError:
-                print(f"bindery: invalid --dpi value: {args[i + 1]}", file=sys.stderr)
-                return 2
-            i += 2
-            continue
-        if token in ("--title", "--author"):
-            if i + 1 >= len(args):
-                print(f"bindery: {token} requires a value", file=sys.stderr)
-                return 2
-            if token == "--title":
-                title = args[i + 1]
-            else:
-                author = args[i + 1]
-            i += 2
-            continue
-        if token == "--grayscale":
-            grayscale = True
-            i += 1
-            continue
-        if token == "--stamp":
-            stamp = True
-            i += 1
-            continue
-        if token == "--force":
-            force = True
-            i += 1
-            continue
-        print(f"bindery: unknown build option: {token}", file=sys.stderr)
-        return 2
-
-    if output is None:
-        print("bindery: build requires -o/--output", file=sys.stderr)
-        return 2
+    parser = _build_arg_parser()
+    try:
+        ns = parser.parse_args(args)
+    except SystemExit as exc:
+        code = exc.code
+        return int(code) if isinstance(code, int) else 2
 
     try:
         config = JobConfig(
-            source_dir=source,
-            output_path=output,
-            margins=MarginSpec.uniform(margin),
-            grayscale=grayscale,
-            stamp_page_numbers=stamp,
-            dpi=dpi,
-            force=force,
-            title=title,
-            author=author,
+            source_dir=ns.source,
+            output_path=ns.output,
+            margins=MarginSpec.uniform(ns.margin),
+            grayscale=ns.grayscale,
+            stamp_page_numbers=ns.stamp,
+            dpi=ns.dpi,
+            force=ns.force,
+            title=ns.title,
+            author=ns.author,
         )
         report = run_job(config, on_progress=_print_progress)
     except BinderyError as exc:

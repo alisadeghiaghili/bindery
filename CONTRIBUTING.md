@@ -4,9 +4,9 @@
 
 1. Every public claim in docs must match running code. Do not mark features done without command output.
 2. TDD for domain and adapters: write the failing test first, then implement.
-3. One human-week of work per pull request when possible. Keep PRs reviewable.
+3. Keep pull requests reviewable: one coherent theme per PR, with a clear release note. Batch related fixes when they share that theme; do not pad unrelated work to hit a size target.
 4. Conventional Commits with a scope, for example `feat(domain): natural-sort filenames`.
-5. No `except Exception:` widen, no skipped tests to go green, no silent failures.
+5. No `except Exception:` widen, no skipped tests to go green, no silent failures. GUI smoke tests may skip when Tcl/Tk is absent; product modules must still import without optional UI stacks.
 6. Google-style docstrings with `Args`, `Returns`, `Raises`, and a runnable `Example` on every public symbol.
 
 ## Gates before merge

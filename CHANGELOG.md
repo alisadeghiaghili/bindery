@@ -29,8 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Package root exports `JobConfig`, `JobReport`, and `run_job`.
+- CLI `build` parses options with `argparse` (exit codes unchanged: 0/2/3/4).
+- `bindery.gui` imports Tcl/Tk lazily; library import works without tkinter.
 - CI quality gates run on Ubuntu and Windows, Python 3.12 and 3.13.
 - Coverage policy: `fail_under=90` measures package surface excluding `gui.py` (tkinter shell; smoke-tested when Tcl/Tk loads).
+- CONTRIBUTING process guidance matches reviewable PRs, not calendar-week theater.
 - `write_pdf` docstring matches implementation (img2pdf metadata kwargs; pypdf is validation-only).
 - Architecture doc allows adapters → domain and no longer describes a nonexistent models edge in the old diagram.
 - Removed empty `ocr` optional extra; `gui` extra remains reserved for a future PySide6 shell.

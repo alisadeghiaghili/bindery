@@ -10,9 +10,7 @@ from __future__ import annotations
 import contextlib
 import queue
 import threading
-import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
 from typing import Any
 
 from bindery import get_version
@@ -35,6 +33,14 @@ class BinderyApp:
 
     def __init__(self) -> None:
         """Create the main window, widgets, and worker plumbing."""
+        import tkinter as tk
+        from tkinter import filedialog, messagebox, ttk
+
+        self._tk = tk
+        self._filedialog = filedialog
+        self._messagebox = messagebox
+        self._ttk = ttk
+
         self.root = tk.Tk()
         self.root.title(f"bindery {get_version()}")
         self.root.minsize(560, 460)
@@ -60,6 +66,8 @@ class BinderyApp:
 
     def _build_layout(self) -> None:
         """Create widgets and grid layout."""
+        tk = self._tk
+        ttk = self._ttk
         padx, pady = 8, 4
         main = ttk.Frame(self.root, padding=12)
         main.grid(row=0, column=0, sticky="nsew")
@@ -147,7 +155,7 @@ class BinderyApp:
 
     def _browse_source(self) -> None:
         """Open a directory picker for the source folder."""
-        chosen = filedialog.askdirectory(title="Select page folder")
+        chosen = self._filedialog.askdirectory(title="Select page folder")
         if chosen:
             self._source_var.set(chosen)
             if not self._output_var.get():
@@ -155,7 +163,7 @@ class BinderyApp:
 
     def _browse_output(self) -> None:
         """Open a file picker for the output PDF."""
-        chosen = filedialog.asksaveasfilename(
+        chosen = self._filedialog.asksaveasfilename(
             title="Save PDF as",
             defaultextension=".pdf",
             filetypes=[("PDF", "*.pdf")],
@@ -170,7 +178,7 @@ class BinderyApp:
         source = self._source_var.get().strip()
         output = self._output_var.get().strip()
         if not source or not output:
-            messagebox.showerror("bindery", "Source folder and output PDF are required.")
+            self._messagebox.showerror("bindery", "Source folder and output PDF are required.")
             return
 
         try:
@@ -186,7 +194,7 @@ class BinderyApp:
                 author=self._author_var.get() or None,
             )
         except (BinderyError, ValueError) as exc:
-            messagebox.showerror("bindery", str(exc))
+            self._messagebox.showerror("bindery", str(exc))
             return
 
         self._cancel.clear()
@@ -292,11 +300,16 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         int: Exit code (``0``).
 
+    Raises:
+        ModuleNotFoundError: If Tcl/Tk (`tkinter`) is not installed.
+
     Examples:
         >>> callable(main)
         True
     """
     del argv
+    import tkinter  # noqa: F401 - fail fast with a clear ImportError if missing
+
     app = BinderyApp()
     app.run()
     return 0

@@ -75,17 +75,30 @@ def test_doctor_platform_label_is_sys_platform(capsys) -> None:
     assert sys.platform in out
 
 
+def test_inspect_requires_source(capsys) -> None:
+    """inspect without SOURCE is a usage error."""
+    code = main(["inspect"])
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "SOURCE" in captured.err
+
+
+def test_inspect_marks_unreadable_page(tmp_path: Path, capsys) -> None:
+    """Corrupt image files are listed as unreadable, not crash the command."""
+    source = tmp_path / "pages"
+    source.mkdir()
+    Image.new("RGB", (10, 10)).save(source / "ok.png")
+    (source / "bad.png").write_bytes(b"not-an-image")
+    code = main(["inspect", str(source)])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "unreadable" in out
+    assert "ok.png" in out
+
+
 def test_inspect_unknown_following_flags_ignored(tmp_path: Path, capsys) -> None:
     """inspect takes a single SOURCE path; extras after it are unused."""
     source = _make_pages(tmp_path)
     code = main(["inspect", str(source), "--extra"])
     assert code == 0
     assert "page_1.png" in capsys.readouterr().out
-
-
-def test_inspect_requires_source(capsys) -> None:
-    """inspect without a path is usage error."""
-    code = main(["inspect"])
-    captured = capsys.readouterr()
-    assert code == 2
-    assert "SOURCE" in captured.err or "requires" in captured.err

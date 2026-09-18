@@ -72,3 +72,37 @@ def test_write_pdf_writes_once_valid_pdf_header(tmp_path: Path) -> None:
     out = tmp_path / "book.pdf"
     write_pdf(pngs, out)
     assert out.read_bytes()[:5] == b"%PDF-"
+
+
+def test_write_pdf_rejects_non_positive_dpi(tmp_path: Path) -> None:
+    """Non-positive dpi is rejected before conversion."""
+    pngs = _make_pngs(tmp_path / "in", 1)
+    with pytest.raises(BinderyValidationError, match="dpi"):
+        write_pdf(pngs, tmp_path / "out.pdf", dpi=0)
+
+
+def test_write_pdf_converts_img2pdf_failures(tmp_path: Path) -> None:
+    """img2pdf conversion errors surface as BinderyIOError."""
+    from unittest.mock import patch
+
+    pngs = _make_pngs(tmp_path / "in", 1)
+    with (
+        patch("bindery.adapters.pdf.img2pdf.convert", side_effect=RuntimeError("boom")),
+        pytest.raises(BinderyIOError, match="PDF conversion failed"),
+    ):
+        write_pdf(pngs, tmp_path / "out.pdf")
+
+
+def test_write_pdf_page_count_mismatch_raises(tmp_path: Path) -> None:
+    """A post-write page-count mismatch raises BinderyIOError."""
+    from unittest.mock import MagicMock, patch
+
+    pngs = _make_pngs(tmp_path / "in", 2)
+    out = tmp_path / "book.pdf"
+    fake_reader = MagicMock()
+    fake_reader.pages = [object()]
+    with (
+        patch("bindery.adapters.pdf.PdfReader", return_value=fake_reader),
+        pytest.raises(BinderyIOError, match="page count mismatch"),
+    ):
+        write_pdf(pngs, out)
