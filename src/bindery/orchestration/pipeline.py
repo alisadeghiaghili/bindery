@@ -8,6 +8,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from bindery.adapters.bookmarks import apply_bookmarks, bookmark_titles
 from bindery.adapters.fs import discover_page_files
 from bindery.adapters.images import (
     crop_image,
@@ -24,6 +25,7 @@ from bindery.domain.geometry import normalize_margins
 from bindery.exceptions import BinderyIOError, BinderyValidationError
 from bindery.models.config import JobConfig
 from bindery.models.crop import MarginSpec
+from bindery.models.jobfile import SourceSpec
 from bindery.models.page import PageFile
 from bindery.models.page_size import parse_page_size
 from bindery.orchestration.manifest import (
@@ -38,6 +40,7 @@ from bindery.orchestration.progress import ProgressCallback, ProgressEvent
 __all__ = [
     "JobReport",
     "assemble_job",
+    "discover_job_pages",
     "run_job",
     "select_pages",
     "transform_page",
@@ -91,6 +94,69 @@ def select_pages(pages: list[PageFile], page_names: tuple[str, ...] | None) -> l
         source_page = by_name[name]
         selected.append(PageFile(path=source_page.path, index=index))
     return selected
+
+
+def _effective_source_specs(config: JobConfig) -> tuple[SourceSpec, ...]:
+    """Return source specs for discovery from JobConfig.
+
+    Args:
+        config: Active job settings.
+
+    Returns:
+        tuple[SourceSpec, ...]: Specs in assemble order.
+
+    Examples:
+        >>> callable(_effective_source_specs)
+        True
+    """
+    if config.sources is not None:
+        return config.sources
+    specs: list[SourceSpec] = [SourceSpec(path=config.source_dir, page_names=config.page_names)]
+    specs.extend(SourceSpec(path=path) for path in config.extra_sources)
+    return tuple(specs)
+
+
+def discover_job_pages(config: JobConfig) -> tuple[list[PageFile], list[int], list[str]]:
+    """Discover pages across all job sources with chapter boundaries.
+
+    Args:
+        config: Active job settings.
+
+    Returns:
+        tuple: ``(pages, chapter_starts, chapter_labels)``.
+
+    Raises:
+        BinderyValidationError: If a requested page name is missing.
+
+    Examples:
+        >>> callable(discover_job_pages)
+        True
+    """
+    chapter_selected: list[list[PageFile]] = []
+    chapter_labels: list[str] = []
+    for spec in _effective_source_specs(config):
+        discovered = discover_page_files(spec.path)
+        selected = select_pages(discovered, spec.page_names)
+        if spec.exclude:
+            excluded = set(spec.exclude)
+            selected = [page for page in selected if page.name not in excluded]
+        chapter_selected.append(selected)
+        chapter_labels.append(spec.path.name or str(spec.path))
+
+    if config.exclude_names:
+        global_excluded = set(config.exclude_names)
+        chapter_selected = [
+            [page for page in chapter if page.name not in global_excluded]
+            for chapter in chapter_selected
+        ]
+
+    pages: list[PageFile] = []
+    chapter_starts: list[int] = []
+    for chapter in chapter_selected:
+        chapter_starts.append(len(pages))
+        for page in chapter:
+            pages.append(PageFile(path=page.path, index=len(pages)))
+    return pages, chapter_starts, chapter_labels
 
 
 def transform_page(page: PageFile, config: JobConfig, work_dir: Path) -> Path:
@@ -198,8 +264,7 @@ def assemble_job(
         True
     """
     started = time.perf_counter()
-    discovered = discover_page_files(config.source_dir)
-    pages = select_pages(discovered, config.page_names)
+    pages, chapter_starts, chapter_labels = discover_job_pages(config)
     page_identities = [page_identity(page.path) for page in pages]
     _emit(
         on_progress,
@@ -269,6 +334,14 @@ def assemble_job(
             title=config.title or config.output_path.stem,
             author=config.author,
         )
+        titles = bookmark_titles(
+            config.bookmark_mode,
+            [page.name for page in pages],
+            chapter_starts,
+            chapter_labels,
+        )
+        if titles is not None:
+            apply_bookmarks(config.output_path, titles)
     except OSError as exc:
         raise BinderyIOError(f"assemble failed: {exc}") from exc
     finally:

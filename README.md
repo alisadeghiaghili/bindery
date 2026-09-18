@@ -2,7 +2,7 @@
 
 Assemble image folders into a single, clean PDF document.
 
-**Status:** v0.7.1 — CLI + desktop GUI on the same pipeline. Windows `bindery.exe` is published on Releases.
+**Status:** v0.8.0 — CLI + desktop GUI on the same pipeline. Windows `bindery.exe` is published on Releases.
 
 ## What this is
 
@@ -34,6 +34,9 @@ bindery build ./pages -o book.pdf --compress jpeg --jpeg-quality 80
 bindery build ./pages -o book.pdf --pages page_2.png,page_1.png
 bindery build ./pages -o book.pdf --exclude cover.png --force
 bindery preview ./pages -o preview.png --page 1 --grayscale
+bindery job book.toml --dry-run
+bindery job book.toml
+bindery build ./ch1 -o book.pdf --extra-source ./ch2 --bookmarks chapters
 bindery inspect ./pages
 bindery doctor
 bindery gui
