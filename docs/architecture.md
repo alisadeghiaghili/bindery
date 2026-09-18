@@ -20,14 +20,18 @@ Dependencies point inward only. `models` is a shared value-object layer: domain 
 
 Adapters may depend on domain pure helpers (for example natural ordering used during filesystem discovery). Domain must never import adapters or orchestration.
 
-## v0.6.0 status
+## v0.7.0 status
 
 Present:
 
 - models, domain, adapters, orchestration (progress + content-aware resume)
-- CLI: `build`, `inspect`, `doctor`, `gui`
-- tkinter GUI shell over `run_job` (no UI business logic)
+- Resume fingerprint: options + page identity (name/size/mtime) + title/author + resolved source/output paths
+- CLI: `build` (argparse), `inspect`, `doctor`, `gui`
+- PDF metadata via `--title` / `--author` (and GUI fields)
+- tkinter GUI shell over `run_job` (lazy Tcl/Tk import; no UI business logic)
+- Stamp footer band so page numbers do not overlay content
 - Windows `bindery.exe` on Releases
+- CI: Ubuntu + Windows × Python 3.12 + 3.13
 
 Still missing: OCR extra, PySide6 upgrade path (optional).
 

@@ -327,7 +327,7 @@ def main(argv: list[str] | None = None) -> int:
 
     Examples:
         >>> main(["--version"])  # doctest: +SKIP
-        bindery 0.6.0
+        bindery 0.7.0
         0
     """
     args = list(sys.argv[1:] if argv is None else argv)

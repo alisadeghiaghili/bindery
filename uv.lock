@@ -81,7 +81,7 @@ wheels = [
 
 [[package]]
 name = "bindery"
-version = "0.6.0"
+version = "0.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "img2pdf" },
@@ -90,12 +90,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-dev = [
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-]
 gui = [
     { name = "pyside6-essentials" },
 ]
@@ -112,15 +106,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "img2pdf", specifier = ">=0.6.3" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.14" },
     { name = "pillow", specifier = ">=12.3.0" },
     { name = "pypdf", specifier = ">=6.18.0" },
     { name = "pyside6-essentials", marker = "extra == 'gui'", specifier = ">=6.11.2" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
 ]
-provides-extras = ["dev", "gui", "ocr"]
+provides-extras = ["gui"]
 
 [package.metadata.requires-dev]
 dev = [

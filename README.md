@@ -2,7 +2,7 @@
 
 Assemble image folders into a single, clean PDF document.
 
-**Status:** v0.6.0 — CLI + desktop GUI on the same pipeline. Windows `bindery.exe` is published on Releases.
+**Status:** v0.7.0 — CLI + desktop GUI on the same pipeline. Windows `bindery.exe` is published on Releases.
 
 ## What this is
 
