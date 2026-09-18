@@ -96,7 +96,14 @@ def _cmd_inspect(args: list[str]) -> int:
         print(_USAGE, file=sys.stderr)
         return 2
 
-    source = Path(args[0])
+    parser = _inspect_arg_parser()
+    try:
+        ns = parser.parse_args(args)
+    except SystemExit as exc:
+        code = exc.code
+        return int(code) if isinstance(code, int) else 2
+
+    source = ns.source
     try:
         pages = discover_page_files(source)
     except BinderyError as exc:
@@ -230,6 +237,26 @@ class _BuildArgumentParser(argparse.ArgumentParser):
         raise SystemExit(2)
 
 
+class _InspectArgumentParser(argparse.ArgumentParser):
+    """Argument parser for ``bindery inspect`` with bindery usage wording."""
+
+    def error(self, message: str) -> NoReturn:
+        """Print a usage error on stderr and exit with code ``2``.
+
+        Args:
+            message: argparse error text.
+
+        Examples:
+            >>> isinstance(_InspectArgumentParser(prog="bindery-inspect"), argparse.ArgumentParser)
+            True
+        """
+        if "the following arguments are required" in message.lower():
+            message = "inspect requires a SOURCE directory"
+        print(f"bindery: {message}", file=sys.stderr)
+        print(_USAGE, file=sys.stderr)
+        raise SystemExit(2)
+
+
 def _build_arg_parser() -> _BuildArgumentParser:
     """Create the argparse parser for ``bindery build``.
 
@@ -264,6 +291,25 @@ def _build_arg_parser() -> _BuildArgumentParser:
     parser.add_argument("--title", type=str, default=None, help="PDF document title")
     parser.add_argument("--author", type=str, default=None, help="PDF document author")
     parser.add_argument("--force", action="store_true", help="Rebuild even if up to date")
+    return parser
+
+
+def _inspect_arg_parser() -> _InspectArgumentParser:
+    """Create the argparse parser for ``bindery inspect``.
+
+    Returns:
+        _InspectArgumentParser: Parser configured for the inspect verb.
+
+    Examples:
+        >>> _inspect_arg_parser().prog
+        'bindery-inspect'
+    """
+    parser = _InspectArgumentParser(
+        prog="bindery-inspect",
+        add_help=False,
+        description="List pages in assemble order with pixel sizes.",
+    )
+    parser.add_argument("source", type=Path, help="Directory containing page images")
     return parser
 
 

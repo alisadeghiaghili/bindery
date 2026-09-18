@@ -244,6 +244,57 @@ def test_build_title_requires_value(capsys: pytest.CaptureFixture[str]) -> None:
     assert "--title" in capsys.readouterr().err
 
 
+def test_build_requires_source_verb_args(capsys: pytest.CaptureFixture[str]) -> None:
+    """``build`` with no arguments is a usage error."""
+    assert main(["build"]) == 2
+    err = capsys.readouterr().err
+    assert "SOURCE" in err
+
+
+def test_inspect_rejects_unknown_flag(capsys: pytest.CaptureFixture[str]) -> None:
+    """inspect argparse rejects unknown flags with exit 2."""
+    assert main(["inspect", "pages", "--nope"]) == 2
+    assert "bindery:" in capsys.readouterr().err
+
+
+def test_doctor_img2pdf_api_without_convert(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    """doctor reports FAILED when img2pdf lacks a callable convert API."""
+    import sys
+    import types
+
+    stub = types.ModuleType("img2pdf")
+    monkeypatch.setitem(sys.modules, "img2pdf", stub)
+    code = main(["doctor"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "img2pdf API: FAILED" in out
+
+
+def test_gui_help_does_not_launch_tk(capsys: pytest.CaptureFixture[str]) -> None:
+    """``gui --help`` prints usage without starting Tk."""
+    assert main(["gui", "--help"]) == 0
+    assert "bindery gui" in capsys.readouterr().out
+
+
+def test_doctor_reports_missing_dependency(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    """doctor prints MISSING when a dependency cannot be imported."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if name in {"img2pdf", "pypdf"}:
+            raise ImportError(name)
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    code = main(["doctor"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "MISSING" in out
+    assert "FAILED" in out
+
+
 def test_print_progress_stages_emit_stderr(capsys: pytest.CaptureFixture[str]) -> None:
     """Progress callback renders each pipeline stage on stderr."""
     from bindery.cli import _print_progress
