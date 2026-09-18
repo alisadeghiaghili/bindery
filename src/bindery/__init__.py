@@ -38,7 +38,7 @@ def get_version() -> str:
     installed (editable source tree without a build).
 
     Returns:
-        str: Version string in ``MAJOR.MINOR.PATCH`` form, for example ``"0.7.0"``.
+        str: Version string in ``MAJOR.MINOR.PATCH`` form, for example ``"0.7.1"``.
 
     Examples:
         >>> get_version()  # doctest: +SKIP
@@ -51,4 +51,4 @@ def get_version() -> str:
 
 
 #: Declared package version used when metadata is unavailable.
-__version__: str = "0.7.0"
+__version__: str = "0.7.1"

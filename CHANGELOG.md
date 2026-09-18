@@ -7,14 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-09-18
+
 ### Changed
 
-- CLI `inspect` uses the same argparse path as `build` (exit codes unchanged: 0/2/3/4).
+- CLI `inspect` uses the same argparse path as `build` (exit codes unchanged: 0/2/3/4). Unknown flags after SOURCE are usage errors.
 
 ### Added
 
-- Coverage for CLI usage errors, doctor missing-dependency report, and PDF write-failure path.
-- GitHub Release `v0.7.0` Windows executable asset (`bindery-0.7.0-windows-x64.exe`).
+- Coverage for CLI usage errors, doctor missing-dependency / failed-API report, and PDF write-failure path.
+- Windows release executable `bindery-<version>-windows-x64.exe` is attached to GitHub Releases.
 
 ## [0.7.0] - 2026-09-18
 
@@ -132,7 +134,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Apache License 2.0.
 - README with explicit non-goals (no scraping, no DRM circumvention).
 
-[Unreleased]: https://github.com/alisadeghiaghili/bindery/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/alisadeghiaghili/bindery/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/alisadeghiaghili/bindery/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/alisadeghiaghili/bindery/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/alisadeghiaghili/bindery/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/alisadeghiaghili/bindery/compare/v0.4.0...v0.5.0
