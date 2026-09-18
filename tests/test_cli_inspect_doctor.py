@@ -96,9 +96,9 @@ def test_inspect_marks_unreadable_page(tmp_path: Path, capsys) -> None:
     assert "ok.png" in out
 
 
-def test_inspect_unknown_following_flags_ignored(tmp_path: Path, capsys) -> None:
-    """inspect takes a single SOURCE path; extras after it are unused."""
+def test_inspect_rejects_unknown_following_flags(tmp_path: Path, capsys) -> None:
+    """inspect accepts only SOURCE; unknown flags are usage errors."""
     source = _make_pages(tmp_path)
     code = main(["inspect", str(source), "--extra"])
-    assert code == 0
-    assert "page_1.png" in capsys.readouterr().out
+    assert code == 2
+    assert "bindery:" in capsys.readouterr().err

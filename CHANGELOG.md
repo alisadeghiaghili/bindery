@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- CLI `inspect` uses the same argparse path as `build` (exit codes unchanged: 0/2/3/4).
+
+### Added
+
+- Coverage for CLI usage errors, doctor missing-dependency report, and PDF write-failure path.
+- GitHub Release `v0.7.0` Windows executable asset (`bindery-0.7.0-windows-x64.exe`).
+
 ## [0.7.0] - 2026-09-18
 
 ### Added

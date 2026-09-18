@@ -106,3 +106,16 @@ def test_write_pdf_page_count_mismatch_raises(tmp_path: Path) -> None:
         pytest.raises(BinderyIOError, match="page count mismatch"),
     ):
         write_pdf(pngs, out)
+
+
+def test_write_pdf_write_failure_raises(tmp_path: Path) -> None:
+    """Filesystem write failures surface as BinderyIOError."""
+    from unittest.mock import patch
+
+    pngs = _make_pngs(tmp_path / "in", 1)
+    out = tmp_path / "book.pdf"
+    with (
+        patch.object(Path, "write_bytes", side_effect=OSError("disk full")),
+        pytest.raises(BinderyIOError, match="cannot write PDF"),
+    ):
+        write_pdf(pngs, out)
