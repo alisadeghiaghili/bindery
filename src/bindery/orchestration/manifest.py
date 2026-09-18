@@ -90,11 +90,6 @@ def config_fingerprint(
 ) -> str:
     """Hash job settings and ordered page content identities.
 
-    The payload includes each page's name, size, and mtime so that rewriting
-    an image under the same filename invalidates a resume skip. Title,
-    author, resolved source_dir, and resolved output_path are included because
-    they change either PDF metadata or which job this manifest belongs to.
-
     Args:
         config: Active job configuration.
         page_identities: Per-page identity dicts in assemble order.
@@ -110,6 +105,10 @@ def config_fingerprint(
         >>> len(config_fingerprint(cfg, payload)) == 64
         True
     """
+    crop = config.crop
+    crop_payload = None
+    if crop is not None:
+        crop_payload = [crop.left, crop.top, crop.right, crop.bottom]
     payload: dict[str, Any] = {
         "dpi": config.dpi,
         "grayscale": config.grayscale,
@@ -119,6 +118,12 @@ def config_fingerprint(
         "author": config.author,
         "source_dir": str(config.source_dir.resolve()),
         "output_path": str(config.output_path.resolve()),
+        "crop": crop_payload,
+        "rotate": config.rotate,
+        "page_size": config.page_size,
+        "compress": config.compress,
+        "jpeg_quality": config.jpeg_quality if config.compress == "jpeg" else None,
+        "page_names": list(config.page_names) if config.page_names is not None else None,
         "pages": list(page_identities),
     }
     blob = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")

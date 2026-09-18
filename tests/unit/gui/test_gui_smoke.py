@@ -50,7 +50,7 @@ def test_handle_progress_sets_fraction(app) -> None:
 
 def test_start_requires_paths(app) -> None:
     """Empty form does not start a worker (dialog mocked)."""
-    with patch.object(app._messagebox, "showerror") as showerror:
+    with patch("bindery.gui.messagebox.showerror") as showerror:
         app._start()
     assert showerror.called
     assert app._worker is None or not app._worker.is_alive()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import NoReturn
@@ -11,10 +12,12 @@ from typing import NoReturn
 from bindery import get_version
 from bindery.adapters.fs import discover_page_files
 from bindery.adapters.images import load_image
-from bindery.exceptions import BinderyError
+from bindery.exceptions import BinderyError, BinderyValidationError
 from bindery.models.config import JobConfig
-from bindery.models.crop import MarginSpec
-from bindery.orchestration.pipeline import run_job
+from bindery.models.crop import CropBox, MarginSpec
+from bindery.models.page import PageFile
+from bindery.models.page_size import parse_page_size
+from bindery.orchestration.pipeline import run_job, select_pages, transform_page
 from bindery.orchestration.progress import ProgressEvent
 
 __all__ = ["main"]
@@ -24,21 +27,30 @@ Usage:
   bindery --version
   bindery --help
   bindery build SOURCE -o OUTPUT [options]
+  bindery preview SOURCE -o IMAGE [options]
   bindery inspect SOURCE
   bindery doctor
   bindery gui
 
 Assemble a folder of page images into a single PDF.
 
-build options:
-  -o, --output PATH     Output PDF path (required)
+build / preview options:
+  -o, --output PATH     Output path (required)
   --margin N            Uniform margin in pixels (default 0)
   --grayscale           Convert pages to grayscale
   --stamp               Stamp 1-based page numbers in the footer
   --dpi N               PDF page geometry dpi (default 300)
-  --title TEXT          PDF document title (default: output file stem)
-  --author TEXT         PDF document author metadata
-  --force               Rebuild even if output is up to date
+  --title TEXT          PDF document title (build; default: output stem)
+  --author TEXT         PDF document author metadata (build)
+  --crop L,T,R,B        Crop box in source pixels (exclusive right/bottom)
+  --rotate DEG          Clockwise rotate: 0, 90, 180, or 270
+  --page-size SPEC      a4 | letter | WIDTHxHEIGHT (PDF points)
+  --compress MODE       lossless (default) | jpeg
+  --jpeg-quality N      JPEG quality 1-95 (default 85; jpeg only)
+  --pages N1,N2,...     Explicit page file names in assemble order
+  --exclude N1,N2,...   Drop these file names after discovery
+  --page N              Preview only: 1-based page index (default 1)
+  --force               Rebuild even if output is up to date (build)
 
 inspect:
   List pages in assemble order with pixel sizes.
@@ -131,9 +143,6 @@ def _cmd_inspect(args: list[str]) -> int:
 def _safe_platform() -> str:
     """Return a platform label that cannot crash on Windows WMI probes.
 
-    ``platform.platform()`` may raise fatal WinError/OOM from WMI on some
-    hosts; doctor reports ``sys.platform`` instead.
-
     Returns:
         str: ``sys.platform`` value, e.g. ``"win32"``.
 
@@ -213,6 +222,54 @@ def _int_or_cli_error(flag: str) -> Callable[[str], int]:
     return _parse
 
 
+def _parse_crop(value: str) -> CropBox:
+    """Parse ``L,T,R,B`` into a :class:`CropBox`.
+
+    Args:
+        value: Comma-separated integers.
+
+    Returns:
+        CropBox: Crop rectangle.
+
+    Raises:
+        argparse.ArgumentTypeError: If the token is not four integers.
+
+    Examples:
+        >>> _parse_crop("0,0,4,5").width
+        4
+    """
+    parts = value.split(",")
+    if len(parts) != 4:
+        raise argparse.ArgumentTypeError(f"invalid --crop value: {value} (need L,T,R,B)")
+    try:
+        left, top, right, bottom = (int(part.strip()) for part in parts)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid --crop value: {value}") from None
+    return CropBox(left=left, top=top, right=right, bottom=bottom)
+
+
+def _parse_name_list(value: str) -> tuple[str, ...]:
+    """Parse a comma-separated list of page file names.
+
+    Args:
+        value: ``"a.png,b.png"``.
+
+    Returns:
+        tuple[str, ...]: Non-empty names in order.
+
+    Raises:
+        argparse.ArgumentTypeError: If the list is empty.
+
+    Examples:
+        >>> _parse_name_list("a.png,b.png")
+        ('a.png', 'b.png')
+    """
+    names = tuple(part.strip() for part in value.split(",") if part.strip())
+    if not names:
+        raise argparse.ArgumentTypeError(f"invalid page list: {value!r}")
+    return names
+
+
 class _BuildArgumentParser(argparse.ArgumentParser):
     """Argument parser that prints bindery usage errors and exits ``2``."""
 
@@ -257,6 +314,60 @@ class _InspectArgumentParser(argparse.ArgumentParser):
         raise SystemExit(2)
 
 
+def _add_transform_arguments(parser: argparse.ArgumentParser) -> None:
+    """Attach shared transform flags to a build/preview parser.
+
+    Args:
+        parser: Target parser.
+
+    Examples:
+        >>> callable(_add_transform_arguments)
+        True
+    """
+    parser.add_argument("-o", "--output", type=Path, required=True, help="Output path")
+    parser.add_argument(
+        "--margin",
+        type=_int_or_cli_error("--margin"),
+        default=0,
+        help="Uniform margin in pixels (default 0)",
+    )
+    parser.add_argument("--grayscale", action="store_true", help="Convert pages to grayscale")
+    parser.add_argument("--stamp", action="store_true", help="Stamp 1-based page numbers")
+    parser.add_argument(
+        "--dpi",
+        type=_int_or_cli_error("--dpi"),
+        default=300,
+        help="PDF page geometry dpi (default 300)",
+    )
+    parser.add_argument("--crop", type=_parse_crop, default=None, help="Crop L,T,R,B pixels")
+    parser.add_argument(
+        "--rotate",
+        type=_int_or_cli_error("--rotate"),
+        default=0,
+        help="Clockwise rotate 0/90/180/270",
+    )
+    parser.add_argument("--page-size", default=None, help="a4 | letter | WIDTHxHEIGHT pt")
+    parser.add_argument(
+        "--compress",
+        choices=("lossless", "jpeg"),
+        default="lossless",
+        help="lossless (default) or jpeg",
+    )
+    parser.add_argument(
+        "--jpeg-quality",
+        type=_int_or_cli_error("--jpeg-quality"),
+        default=85,
+        help="JPEG quality 1-95 (jpeg only)",
+    )
+    parser.add_argument("--pages", type=_parse_name_list, default=None, help="Explicit page order")
+    parser.add_argument(
+        "--exclude",
+        type=_parse_name_list,
+        default=None,
+        help="Page names to drop after discovery",
+    )
+
+
 def _build_arg_parser() -> _BuildArgumentParser:
     """Create the argparse parser for ``bindery build``.
 
@@ -273,24 +384,36 @@ def _build_arg_parser() -> _BuildArgumentParser:
         description="Assemble a folder of page images into a single PDF.",
     )
     parser.add_argument("source", type=Path, help="Directory containing page images")
-    parser.add_argument("-o", "--output", type=Path, required=True, help="Output PDF path")
-    parser.add_argument(
-        "--margin",
-        type=_int_or_cli_error("--margin"),
-        default=0,
-        help="Uniform margin in pixels (default 0)",
-    )
-    parser.add_argument("--grayscale", action="store_true", help="Convert pages to grayscale")
-    parser.add_argument("--stamp", action="store_true", help="Stamp 1-based page numbers")
-    parser.add_argument(
-        "--dpi",
-        type=_int_or_cli_error("--dpi"),
-        default=300,
-        help="PDF page geometry dpi (default 300)",
-    )
+    _add_transform_arguments(parser)
     parser.add_argument("--title", type=str, default=None, help="PDF document title")
     parser.add_argument("--author", type=str, default=None, help="PDF document author")
     parser.add_argument("--force", action="store_true", help="Rebuild even if up to date")
+    return parser
+
+
+def _preview_arg_parser() -> _BuildArgumentParser:
+    """Create the argparse parser for ``bindery preview``.
+
+    Returns:
+        _BuildArgumentParser: Parser configured for the preview verb.
+
+    Examples:
+        >>> _preview_arg_parser().prog
+        'bindery-preview'
+    """
+    parser = _BuildArgumentParser(
+        prog="bindery-preview",
+        add_help=False,
+        description="Write one transformed page image for inspection.",
+    )
+    parser.add_argument("source", type=Path, help="Directory containing page images")
+    _add_transform_arguments(parser)
+    parser.add_argument(
+        "--page",
+        type=_int_or_cli_error("--page"),
+        default=1,
+        help="1-based page index to preview (default 1)",
+    )
     return parser
 
 
@@ -311,6 +434,40 @@ def _inspect_arg_parser() -> _InspectArgumentParser:
     )
     parser.add_argument("source", type=Path, help="Directory containing page images")
     return parser
+
+
+def _resolve_page_names(
+    discovered: list[PageFile],
+    pages: tuple[str, ...] | None,
+    exclude: tuple[str, ...] | None,
+) -> tuple[str, ...] | None:
+    """Compute explicit page order from --pages/--exclude.
+
+    Args:
+        discovered: Naturally sorted pages from the source directory.
+        pages: Optional explicit order.
+        exclude: Optional names to drop.
+
+    Returns:
+        tuple[str, ...] | None: Explicit order, or ``None`` for natural sort.
+
+    Raises:
+        BinderyValidationError: If exclude references a missing name.
+
+    Examples:
+        >>> callable(_resolve_page_names)
+        True
+    """
+    if pages is not None:
+        return pages
+    if exclude is None:
+        return None
+    exclude_set = set(exclude)
+    available = {page.name for page in discovered}
+    missing = exclude_set - available
+    if missing:
+        raise BinderyValidationError(f"exclude names not in source: {sorted(missing)}")
+    return tuple(page.name for page in discovered if page.name not in exclude_set)
 
 
 def _cmd_build(args: list[str]) -> int:
@@ -335,6 +492,10 @@ def _cmd_build(args: list[str]) -> int:
         return int(code) if isinstance(code, int) else 2
 
     try:
+        if ns.page_size is not None:
+            parse_page_size(ns.page_size)
+        discovered = discover_page_files(ns.source)
+        page_names = _resolve_page_names(discovered, ns.pages, ns.exclude)
         config = JobConfig(
             source_dir=ns.source,
             output_path=ns.output,
@@ -345,6 +506,12 @@ def _cmd_build(args: list[str]) -> int:
             force=ns.force,
             title=ns.title,
             author=ns.author,
+            crop=ns.crop,
+            rotate=ns.rotate,
+            page_size=ns.page_size,
+            compress=ns.compress,
+            jpeg_quality=ns.jpeg_quality,
+            page_names=page_names,
         )
         report = run_job(config, on_progress=_print_progress)
     except BinderyError as exc:
@@ -358,6 +525,79 @@ def _cmd_build(args: list[str]) -> int:
         print(f"Up to date: {report.output_path} ({report.page_count} pages)")
     else:
         print(f"Wrote {report.output_path} ({report.page_count} pages)")
+    return 0
+
+
+def _cmd_preview(args: list[str]) -> int:
+    """Run ``bindery preview`` and write one transformed page image.
+
+    Args:
+        args: Arguments after the ``preview`` verb.
+
+    Returns:
+        int: ``0`` on success, ``2`` usage, ``3`` validation, ``4`` I/O.
+    """
+    if not args:
+        print("bindery: preview requires a SOURCE directory", file=sys.stderr)
+        print(_USAGE, file=sys.stderr)
+        return 2
+
+    parser = _preview_arg_parser()
+    try:
+        ns = parser.parse_args(args)
+    except SystemExit as exc:
+        code = exc.code
+        return int(code) if isinstance(code, int) else 2
+
+    try:
+        if ns.page_size is not None:
+            parse_page_size(ns.page_size)
+        discovered = discover_page_files(ns.source)
+        page_names = _resolve_page_names(discovered, ns.pages, ns.exclude)
+        selected = select_pages(discovered, page_names)
+        if not selected:
+            print("bindery: no page images in source", file=sys.stderr)
+            return 3
+        if ns.page < 1 or ns.page > len(selected):
+            print(
+                f"bindery: --page must be 1..{len(selected)}, got {ns.page}",
+                file=sys.stderr,
+            )
+            return 3
+        page = selected[ns.page - 1]
+        config = JobConfig(
+            source_dir=ns.source,
+            output_path=ns.output,
+            margins=MarginSpec.uniform(ns.margin),
+            grayscale=ns.grayscale,
+            stamp_page_numbers=ns.stamp,
+            dpi=ns.dpi,
+            crop=ns.crop,
+            rotate=ns.rotate,
+            page_size=ns.page_size,
+            compress=ns.compress,
+            jpeg_quality=ns.jpeg_quality,
+            page_names=page_names,
+        )
+        work_dir = Path(tempfile.mkdtemp(prefix="bindery-preview-"))
+        try:
+            written = transform_page(PageFile(path=page.path, index=page.index), config, work_dir)
+            dest = Path(ns.output)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            final = dest.with_suffix(written.suffix)
+            final.write_bytes(written.read_bytes())
+        finally:
+            import shutil
+
+            shutil.rmtree(work_dir, ignore_errors=True)
+    except BinderyError as exc:
+        print(f"bindery: {exc}", file=sys.stderr)
+        name = type(exc).__name__
+        if "Validation" in name or "Config" in name:
+            return 3
+        return 4
+
+    print(f"Wrote preview {final} ({page.name})")
     return 0
 
 
@@ -388,6 +628,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args[0] == "build":
         return _cmd_build(args[1:])
+
+    if args[0] == "preview":
+        return _cmd_preview(args[1:])
 
     if args[0] == "inspect":
         return _cmd_inspect(args[1:])
