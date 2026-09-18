@@ -9,7 +9,7 @@ from bindery.orchestration.manifest import (
     manifest_path_for,
     page_identity,
 )
-from bindery.orchestration.pipeline import assemble_job, run_job
+from bindery.orchestration.pipeline import assemble_job, run_job, select_pages, transform_page
 from bindery.orchestration.progress import ProgressCallback, ProgressEvent, ProgressStage
 
 __all__ = [
@@ -23,4 +23,6 @@ __all__ = [
     "manifest_path_for",
     "page_identity",
     "run_job",
+    "select_pages",
+    "transform_page",
 ]

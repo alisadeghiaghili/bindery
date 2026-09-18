@@ -27,8 +27,18 @@ Download `bindery.exe` from [Releases](https://github.com/alisadeghiaghili/binde
 ### From source
 
 ```bash
-uv sync --group dev
-uv run bindery --version
+bindery build ./pages -o book.pdf --margin 8 --grayscale --stamp --dpi 300
+bindery build ./pages -o book.pdf --title "My Book" --author "Name"
+bindery build ./pages -o book.pdf --crop 0,0,1200,1800 --rotate 90 --page-size a4
+bindery build ./pages -o book.pdf --compress jpeg --jpeg-quality 80
+bindery build ./pages -o book.pdf --pages page_2.png,page_1.png
+bindery build ./pages -o book.pdf --exclude cover.png --force
+bindery preview ./pages -o preview.png --page 1 --grayscale
+bindery inspect ./pages
+bindery doctor
+bindery gui
+bindery --version
+bindery --help
 ```
 
 Requires Python 3.12+.
@@ -49,6 +59,8 @@ bindery --help
 A sidecar `book.pdf.bindery.json` records a config fingerprint (options + page identity + metadata). Re-running an identical job prints `Up to date` and skips work unless you pass `--force`.
 
 Exit codes: `0` success, `2` usage, `3` validation, `4` I/O.
+
+GUI includes page reorder/exclude and a first-page preview thumbnail.
 
 ## Development
 

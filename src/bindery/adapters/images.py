@@ -7,11 +7,15 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from bindery.exceptions import BinderyIOError, BinderyValidationError
-from bindery.models.crop import MarginSpec
+from bindery.models.crop import CropBox, MarginSpec
 
 __all__ = [
+    "crop_image",
+    "fit_image_to_page",
     "load_image",
     "pad_to_canvas",
+    "rotate_image",
+    "save_page_image",
     "stamp_page_number",
     "to_grayscale",
 ]
@@ -33,7 +37,7 @@ def load_image(path: Path) -> Image.Image:
     Examples:
         >>> from pathlib import Path
         >>> from PIL import Image
-        >>> import tempfile, os
+        >>> import tempfile
         >>> d = tempfile.mkdtemp()
         >>> p = Path(d) / "a.png"
         >>> Image.new("RGB", (2, 2), (1, 2, 3)).save(p)
@@ -50,6 +54,56 @@ def load_image(path: Path) -> Image.Image:
     except OSError as exc:
         raise BinderyIOError(f"cannot decode image: {image_path}: {exc}") from exc
     return image
+
+
+def crop_image(image: Image.Image, box: CropBox) -> Image.Image:
+    """Crop ``image`` to ``box`` (exclusive right/bottom).
+
+    Args:
+        image: Source image.
+        box: Crop rectangle in source pixels.
+
+    Returns:
+        PIL.Image.Image: New cropped image; input is not mutated.
+
+    Raises:
+        BinderyValidationError: If the box does not fit the image.
+
+    Examples:
+        >>> from PIL import Image
+        >>> from bindery.models.crop import CropBox
+        >>> crop_image(Image.new("RGB", (10, 10)), CropBox(0, 0, 4, 5)).size
+        (4, 5)
+    """
+    width, height = image.size
+    if not box.fits_in((width, height)):
+        raise BinderyValidationError(f"crop {box} does not fit image size {(width, height)}")
+    return image.crop(box.as_pil_box())
+
+
+def rotate_image(image: Image.Image, degrees: int) -> Image.Image:
+    """Rotate image clockwise by ``degrees``.
+
+    Args:
+        image: Source image.
+        degrees: Clockwise angle; must be 0, 90, 180, or 270.
+
+    Returns:
+        PIL.Image.Image: New rotated image; input is not mutated.
+
+    Raises:
+        BinderyValidationError: If degrees is not a supported right angle.
+
+    Examples:
+        >>> from PIL import Image
+        >>> rotate_image(Image.new("RGB", (10, 4)), 90).size
+        (4, 10)
+    """
+    if degrees % 90 != 0 or degrees % 360 not in (0, 90, 180, 270):
+        raise BinderyValidationError(f"rotate must be 0/90/180/270, got {degrees!r}")
+    if degrees % 360 == 0:
+        return image.copy()
+    return image.rotate(-degrees, expand=True)
 
 
 def pad_to_canvas(image: Image.Image, margins: MarginSpec) -> Image.Image:
@@ -89,6 +143,46 @@ def to_grayscale(image: Image.Image) -> Image.Image:
     return image.convert("L")
 
 
+def fit_image_to_page(
+    image: Image.Image,
+    page_size_pt: tuple[float, float],
+    dpi: int,
+) -> Image.Image:
+    """Letterbox ``image`` onto a white canvas sized for a fixed PDF page.
+
+    Args:
+        image: Transformed page image.
+        page_size_pt: Target page box in PDF points ``(width, height)``.
+        dpi: Pixels per inch used to convert points to canvas pixels.
+
+    Returns:
+        PIL.Image.Image: RGB canvas with the image centered and scaled to fit.
+
+    Raises:
+        BinderyValidationError: If dpi is not a positive int.
+
+    Examples:
+        >>> from PIL import Image
+        >>> fit_image_to_page(Image.new("RGB", (20, 20)), (72.0, 72.0), 72).size
+        (72, 72)
+    """
+    if not isinstance(dpi, int) or isinstance(dpi, bool) or dpi <= 0:
+        raise BinderyValidationError(f"dpi must be a positive int, got {dpi!r}")
+    width_pt, height_pt = page_size_pt
+    canvas_w = max(1, round(width_pt * dpi / 72.0))
+    canvas_h = max(1, round(height_pt * dpi / 72.0))
+    canvas = Image.new("RGB", (canvas_w, canvas_h), (255, 255, 255))
+    src = image if image.mode == "RGB" else image.convert("RGB")
+    scale = min(canvas_w / src.width, canvas_h / src.height)
+    new_w = max(1, int(src.width * scale))
+    new_h = max(1, int(src.height * scale))
+    resized = src.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    x = (canvas_w - new_w) // 2
+    y = (canvas_h - new_h) // 2
+    canvas.paste(resized, (x, y))
+    return canvas
+
+
 def stamp_page_number(image: Image.Image, page_number: int) -> Image.Image:
     """Draw a centered page number in the bottom margin band.
 
@@ -124,3 +218,61 @@ def stamp_page_number(image: Image.Image, page_number: int) -> Image.Image:
     y = max(0, height - text_height - 2)
     draw.text((x, y), text, fill=(0, 0, 0), font=font)
     return canvas
+
+
+def save_page_image(
+    image: Image.Image,
+    path: Path,
+    *,
+    compress: str = "lossless",
+    jpeg_quality: int = 85,
+) -> Path:
+    """Write a transformed page for PDF embed or preview.
+
+    Args:
+        image: Page image to write.
+        path: Destination path (suffix may be rewritten for jpeg).
+        compress: ``lossless`` writes PNG; ``jpeg`` writes JPEG.
+        jpeg_quality: Quality 1-95 used when ``compress='jpeg'``.
+
+    Returns:
+        Path: Path actually written.
+
+    Raises:
+        BinderyValidationError: On invalid compress/quality.
+        BinderyIOError: If the write fails.
+
+    Examples:
+        >>> from pathlib import Path
+        >>> from PIL import Image
+        >>> import tempfile
+        >>> p = Path(tempfile.mkdtemp()) / "p.png"
+        >>> save_page_image(Image.new("RGB", (4, 4)), p).name
+        'p.png'
+    """
+    mode = str(compress).strip().lower()
+    if mode not in {"lossless", "jpeg"}:
+        raise BinderyValidationError(f"compress must be lossless or jpeg, got {compress!r}")
+    if not isinstance(jpeg_quality, int) or isinstance(jpeg_quality, bool):
+        raise BinderyValidationError(f"jpeg_quality must be an int, got {type(jpeg_quality)!r}")
+    if jpeg_quality < 1 or jpeg_quality > 95:
+        raise BinderyValidationError(f"jpeg_quality must be in 1..95, got {jpeg_quality}")
+
+    target = Path(path)
+    if mode == "jpeg":
+        target = target.with_suffix(".jpg")
+        save_image = image if image.mode == "RGB" else image.convert("RGB")
+        fmt = "JPEG"
+        options = {"quality": jpeg_quality, "optimize": True}
+    else:
+        target = target.with_suffix(".png")
+        save_image = image
+        fmt = "PNG"
+        options = {"optimize": True}
+
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        save_image.save(target, format=fmt, **options)
+    except OSError as exc:
+        raise BinderyIOError(f"cannot write page image: {target}: {exc}") from exc
+    return target

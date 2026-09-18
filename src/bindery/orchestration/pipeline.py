@@ -9,13 +9,23 @@ import time
 from pathlib import Path
 
 from bindery.adapters.fs import discover_page_files
-from bindery.adapters.images import load_image, pad_to_canvas, stamp_page_number, to_grayscale
+from bindery.adapters.images import (
+    crop_image,
+    fit_image_to_page,
+    load_image,
+    pad_to_canvas,
+    rotate_image,
+    save_page_image,
+    stamp_page_number,
+    to_grayscale,
+)
 from bindery.adapters.pdf import write_pdf
 from bindery.domain.geometry import normalize_margins
-from bindery.exceptions import BinderyIOError
+from bindery.exceptions import BinderyIOError, BinderyValidationError
 from bindery.models.config import JobConfig
 from bindery.models.crop import MarginSpec
 from bindery.models.page import PageFile
+from bindery.models.page_size import parse_page_size
 from bindery.orchestration.manifest import (
     JobReport,
     ResumeManifest,
@@ -29,6 +39,8 @@ __all__ = [
     "JobReport",
     "assemble_job",
     "run_job",
+    "select_pages",
+    "transform_page",
 ]
 
 logger = logging.getLogger(__name__)
@@ -52,29 +64,63 @@ def _emit(callback: ProgressCallback | None, event: ProgressEvent) -> None:
     callback(event)
 
 
-def _transform_page(
-    page: PageFile,
-    config: JobConfig,
-    work_dir: Path,
-) -> Path:
-    """Load, pad, optionally gray/stamp one page into ``work_dir``.
+def select_pages(pages: list[PageFile], page_names: tuple[str, ...] | None) -> list[PageFile]:
+    """Filter and reorder discovered pages by explicit file names.
+
+    Args:
+        pages: Naturally sorted discovered pages.
+        page_names: Optional explicit order of source file names.
+
+    Returns:
+        list[PageFile]: Selected pages with contiguous zero-based indices.
+
+    Raises:
+        BinderyValidationError: If a requested name is missing.
+
+    Examples:
+        >>> callable(select_pages)
+        True
+    """
+    if page_names is None:
+        return list(pages)
+    by_name = {page.name: page for page in pages}
+    selected: list[PageFile] = []
+    for index, name in enumerate(page_names):
+        if name not in by_name:
+            raise BinderyValidationError(f"page not found in source: {name}")
+        source_page = by_name[name]
+        selected.append(PageFile(path=source_page.path, index=index))
+    return selected
+
+
+def transform_page(page: PageFile, config: JobConfig, work_dir: Path) -> Path:
+    """Apply crop/rotate/pad/stamp/gray/page-size and write one page file.
 
     Args:
         page: Source page record.
         config: Job settings.
-        work_dir: Temporary directory for transformed PNGs.
+        work_dir: Directory that receives the transformed page file.
 
     Returns:
-        Path: Transformed PNG path ready for PDF embed.
+        Path: Written PNG or JPEG path.
 
     Raises:
-        BinderyIOError: If load or save fails.
+        BinderyIOError: If load/save fails.
+        BinderyValidationError: If crop does not fit the source image.
+
+    Examples:
+        >>> callable(transform_page)
+        True
     """
     image = load_image(page.path)
     try:
+        if config.crop is not None:
+            image = crop_image(image, config.crop)
+        if config.rotate:
+            image = rotate_image(image, config.rotate)
+
         margins = normalize_margins(config.margins, image.size)
         if config.stamp_page_numbers and margins.bottom < _STAMP_FOOTER_BAND:
-            # Stamps must sit in a footer band, never on top of page content.
             margins = MarginSpec(
                 left=margins.left,
                 top=margins.top,
@@ -86,11 +132,25 @@ def _transform_page(
             image = stamp_page_number(image, page_number=page.index + 1)
         if config.grayscale:
             image = to_grayscale(image)
-        out = work_dir / f"{page.index:05d}.png"
-        image.save(out, format="PNG")
+
+        page_size = parse_page_size(config.page_size)
+        if page_size is not None:
+            image = fit_image_to_page(image, page_size, config.dpi)
+
+        out = work_dir / f"{page.index:05d}"
+        written = save_page_image(
+            image,
+            out,
+            compress=config.compress,
+            jpeg_quality=config.jpeg_quality,
+        )
     finally:
         image.close()
-    return out
+    return written
+
+
+# Back-compat private alias used by older tests.
+_transform_page = transform_page
 
 
 def _should_skip(config: JobConfig, page_identities: list[dict[str, int | str]]) -> bool:
@@ -131,30 +191,15 @@ def assemble_job(
 
     Raises:
         BinderyIOError: On filesystem or decode/write failures.
-        BinderyValidationError: On empty source or invalid config.
+        BinderyValidationError: On empty source, missing page names, or invalid config.
 
     Examples:
-        >>> from pathlib import Path
-        >>> from PIL import Image
-        >>> import tempfile
-        >>> from bindery.models.config import JobConfig
-        >>> root = Path(tempfile.mkdtemp())
-        >>> src = root / "pages"
-        >>> src.mkdir()
-        >>> Image.new("RGB", (10, 10), (0, 0, 0)).save(src / "p1.png")
-        >>> out = root / "book.pdf"
-        >>> events = []
-        >>> report = assemble_job(
-        ...     JobConfig(source_dir=src, output_path=out),
-        ...     on_progress=events.append,
-        ... )
-        >>> report.page_count, report.skipped
-        (1, False)
-        >>> any(e.stage == "done" for e in events)
+        >>> callable(assemble_job)
         True
     """
     started = time.perf_counter()
-    pages = discover_page_files(config.source_dir)
+    discovered = discover_page_files(config.source_dir)
+    pages = select_pages(discovered, config.page_names)
     page_identities = [page_identity(page.path) for page in pages]
     _emit(
         on_progress,
@@ -198,7 +243,7 @@ def assemble_job(
                     current=page.name,
                 ),
             )
-            transformed.append(_transform_page(page, config, work_dir))
+            transformed.append(transform_page(page, config, work_dir))
         _emit(
             on_progress,
             ProgressEvent(

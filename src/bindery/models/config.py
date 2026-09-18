@@ -6,11 +6,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from bindery.exceptions import BinderyValidationError
-from bindery.models.crop import MarginSpec
+from bindery.models.crop import CropBox, MarginSpec
+from bindery.models.page_size import parse_page_size
 
 __all__ = ["JobConfig"]
 
 _DEFAULT_DPI = 300
+_ALLOWED_ROTATE = frozenset({0, 90, 180, 270})
+_ALLOWED_COMPRESS = frozenset({"lossless", "jpeg"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,13 +30,21 @@ class JobConfig:
         force: Rebuild even when a matching resume manifest says the output is current.
         title: Optional PDF document title. ``None`` uses the output stem.
         author: Optional PDF document author metadata.
+        crop: Optional crop rectangle in source pixels (before rotate/pad).
+        rotate: Clockwise rotation in degrees; one of ``0, 90, 180, 270``.
+        page_size: ``None`` keeps source-derived geometry; otherwise preset
+            (``a4``/``letter``) or ``WIDTHxHEIGHT`` in PDF points.
+        compress: ``lossless`` (PNG embed) or ``jpeg`` (JPEG embed).
+        jpeg_quality: JPEG quality 1-95 when ``compress='jpeg'``.
+        page_names: Optional explicit assemble order (subset of source names).
+            ``None`` uses natural sort of all discovered images.
 
     Examples:
         >>> from pathlib import Path
         >>> cfg = JobConfig(source_dir=Path("pages"), output_path=Path("book.pdf"))
-        >>> cfg.dpi, cfg.grayscale, cfg.force
-        (300, False, False)
-        >>> cfg.title is None and cfg.author is None
+        >>> cfg.dpi, cfg.rotate, cfg.compress
+        (300, 0, 'lossless')
+        >>> cfg.crop is None and cfg.page_names is None
         True
     """
 
@@ -46,12 +57,19 @@ class JobConfig:
     force: bool = False
     title: str | None = None
     author: str | None = None
+    crop: CropBox | None = None
+    rotate: int = 0
+    page_size: str | None = None
+    compress: str = "lossless"
+    jpeg_quality: int = 85
+    page_names: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
-        """Coerce paths, metadata strings, and numeric fields.
+        """Coerce paths, metadata, rotation, compress, and page size.
 
         Raises:
-            BinderyValidationError: If dpi is non-positive or source equals output.
+            BinderyValidationError: On invalid dpi, paths, rotate, compress,
+                jpeg quality, or page-size token.
         """
         source = Path(self.source_dir)
         output = Path(self.output_path)
@@ -67,6 +85,41 @@ class JobConfig:
 
         if source.resolve() == output.resolve():
             raise BinderyValidationError(f"output must differ from source_dir; both are {source}")
+
+        rotate = self.rotate
+        if isinstance(rotate, bool) or not isinstance(rotate, int) or rotate not in _ALLOWED_ROTATE:
+            raise BinderyValidationError(
+                f"rotate must be one of {sorted(_ALLOWED_ROTATE)}, got {rotate!r}"
+            )
+        object.__setattr__(self, "rotate", int(rotate) % 360)
+
+        compress = str(self.compress).strip().lower()
+        if compress not in _ALLOWED_COMPRESS:
+            raise BinderyValidationError(
+                f"compress must be one of {sorted(_ALLOWED_COMPRESS)}, got {self.compress!r}"
+            )
+        object.__setattr__(self, "compress", compress)
+
+        quality = self.jpeg_quality
+        if isinstance(quality, bool) or not isinstance(quality, int):
+            raise BinderyValidationError(f"jpeg_quality must be an int, got {type(quality)!r}")
+        if quality < 1 or quality > 95:
+            raise BinderyValidationError(f"jpeg_quality must be in 1..95, got {quality}")
+
+        if self.page_size is not None:
+            parsed = parse_page_size(self.page_size)
+            if parsed is None:
+                object.__setattr__(self, "page_size", None)
+            else:
+                object.__setattr__(self, "page_size", self.page_size.strip().lower())
+
+        if self.page_names is not None:
+            names = tuple(self.page_names)
+            if any(not isinstance(n, str) or not n for n in names):
+                raise BinderyValidationError("page_names must be non-empty file names")
+            if len(set(names)) != len(names):
+                raise BinderyValidationError("page_names must not contain duplicates")
+            object.__setattr__(self, "page_names", names)
 
     @staticmethod
     def _normalize_metadata(value: str | None) -> str | None:

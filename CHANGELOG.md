@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Crop and rotate on the assemble path: `JobConfig.crop` / `JobConfig.rotate`, CLI `--crop L,T,R,B` and `--rotate DEG`.
+- Fixed page geometry: `--page-size a4|letter|WIDTHxHEIGHT` (PDF points) letterboxes pages at job `dpi`.
+- Compression profiles: `--compress lossless|jpeg` and `--jpeg-quality` (JPEG embed vs PNG embed).
+- Explicit page order/filter: `JobConfig.page_names`, CLI `--pages` / `--exclude`.
+- `bindery preview SOURCE -o IMAGE` writes one transformed page for inspection.
+- GUI: page list with include/exclude + reorder, rotate/page-size/compress controls, first-page preview thumbnail.
+- Resume fingerprint covers crop, rotate, page size, compress, and explicit page order.
+
 ## [0.7.1] - 2026-09-18
 
 ### Changed
@@ -43,13 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Package root exports `JobConfig`, `JobReport`, and `run_job`.
 - CLI `build` parses options with `argparse` (exit codes unchanged: 0/2/3/4).
-- `bindery.gui` imports Tcl/Tk lazily; library import works without tkinter.
 - CI quality gates run on Ubuntu and Windows, Python 3.12 and 3.13.
 - Coverage policy: `fail_under=90` measures package surface excluding `gui.py` (tkinter shell; smoke-tested when Tcl/Tk loads).
-- CONTRIBUTING process guidance matches reviewable PRs, not calendar-week theater.
-- `write_pdf` docstring matches implementation (img2pdf metadata kwargs; pypdf is validation-only).
-- Architecture doc allows adapters → domain and no longer describes a nonexistent models edge in the old diagram.
-- Removed empty `ocr` optional extra; `gui` extra remains reserved for a future PySide6 shell.
 
 ## [0.6.0] - 2026-09-10
 
@@ -58,7 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Desktop GUI (`bindery gui`) using tkinter, stdlib only.
 - GUI calls the same `run_job` pipeline; worker thread + progress queue.
 - Cooperative cancel, progress bar, log panel, margin/dpi/options form.
-- Optional extra `bindery[gui]` reserved for future PySide6; current GUI needs no extra install.
+- Optional extra `bindery[gui]` reserved for future PySide6 shell; current GUI needs no extra install.
 
 ### Notes
 
@@ -110,30 +115,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `bindery.models`: `MarginSpec`, `CropBox`, `PageFile`, `JobConfig` (frozen dataclasses).
-- `bindery.domain.geometry`: `compute_output_size`, `pad_image_size`, `normalize_margins`, `is_valid_crop`, `expand_box_by_margins`.
-- `bindery.domain.ordering`: `natural_sort_key`, `sort_page_names` for `page_2` < `page_10`.
-- `bindery.domain.validate`: `ensure_positive_size`, `ensure_source_output_distinct`.
-- Unit tests for domain and models (77 tests, coverage above 90%).
-
-### Notes
-
-- Domain remains pure: no filesystem or Pillow imports.
-- Adapters and CLI `build` still land in later 0.x releases.
+- Domain models and geometry helpers.
+- Project scaffolding, Apache-2.0 license, contributing guide.
 
 ## [0.1.0] - 2026-09-10
 
 ### Added
 
-- Initial package skeleton under `src/bindery`.
-- Declared version `0.1.0` and `get_version()` helper.
-- Exception hierarchy rooted at `BinderyError` (`BinderyConfigError`, `BinderyIOError`, `BinderyValidationError`).
-- Minimal CLI: `bindery --version` / `bindery --help` (exit code `2` on unknown args).
-- Development toolchain: ruff, mypy (strict), pytest.
-- GitHub Actions CI workflow (lint, format, type, test, doc audit).
-- Apache License 2.0.
-- README with explicit non-goals (no scraping, no DRM circumvention).
+- Initial package skeleton.
 
+<!-- compare links -->
 [Unreleased]: https://github.com/alisadeghiaghili/bindery/compare/v0.7.1...HEAD
 [0.7.1]: https://github.com/alisadeghiaghili/bindery/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/alisadeghiaghili/bindery/compare/v0.6.0...v0.7.0
