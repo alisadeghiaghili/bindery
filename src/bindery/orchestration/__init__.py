@@ -7,6 +7,7 @@ from bindery.orchestration.manifest import (
     ResumeManifest,
     config_fingerprint,
     manifest_path_for,
+    page_identity,
 )
 from bindery.orchestration.pipeline import assemble_job, run_job
 from bindery.orchestration.progress import ProgressCallback, ProgressEvent, ProgressStage
@@ -20,5 +21,6 @@ __all__ = [
     "assemble_job",
     "config_fingerprint",
     "manifest_path_for",
+    "page_identity",
     "run_job",
 ]

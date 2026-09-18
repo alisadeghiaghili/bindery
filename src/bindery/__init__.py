@@ -1,7 +1,7 @@
 """bindery — assemble image folders and PDF pages into a single PDF.
 
-Public surface includes version metadata, the exception hierarchy, and the
-assemble pipeline used by the CLI.
+Public surface includes version metadata, the exception hierarchy, job
+configuration, and the assemble pipeline used by the CLI and GUI.
 """
 
 from __future__ import annotations
@@ -14,14 +14,20 @@ from bindery.exceptions import (
     BinderyIOError,
     BinderyValidationError,
 )
+from bindery.models.config import JobConfig
+from bindery.orchestration.manifest import JobReport
+from bindery.orchestration.pipeline import run_job
 
 __all__ = [
     "BinderyConfigError",
     "BinderyError",
     "BinderyIOError",
     "BinderyValidationError",
+    "JobConfig",
+    "JobReport",
     "__version__",
     "get_version",
+    "run_job",
 ]
 
 
@@ -32,11 +38,11 @@ def get_version() -> str:
     installed (editable source tree without a build).
 
     Returns:
-        str: Version string in ``MAJOR.MINOR.PATCH`` form, for example ``"0.3.0"``.
+        str: Version string in ``MAJOR.MINOR.PATCH`` form, for example ``"0.6.0"``.
 
     Examples:
         >>> get_version()  # doctest: +SKIP
-        '0.3.0'
+        '0.6.0'
     """
     try:
         return version("bindery")

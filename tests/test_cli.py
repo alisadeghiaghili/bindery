@@ -152,3 +152,118 @@ def test_build_force_rebuilds(tmp_path: Path, capsys: pytest.CaptureFixture[str]
     captured = capsys.readouterr()
     assert "Wrote" in captured.out
     assert "Up to date" not in captured.out
+
+
+def test_build_missing_output_value(capsys: pytest.CaptureFixture[str]) -> None:
+    """--output without a path is a usage error."""
+    assert main(["build", "pages", "--output"]) == 2
+    assert "--output" in capsys.readouterr().err
+
+
+def test_build_invalid_margin_value(capsys: pytest.CaptureFixture[str]) -> None:
+    """--margin must be an integer."""
+    assert main(["build", "pages", "-o", "out.pdf", "--margin", "x"]) == 2
+    assert "margin" in capsys.readouterr().err.lower()
+
+
+def test_build_invalid_dpi_value(capsys: pytest.CaptureFixture[str]) -> None:
+    """--dpi must be an integer."""
+    assert main(["build", "pages", "-o", "out.pdf", "--dpi", "x"]) == 2
+    assert "dpi" in capsys.readouterr().err.lower()
+
+
+def test_build_unknown_option(capsys: pytest.CaptureFixture[str]) -> None:
+    """Unknown build flags are usage errors."""
+    assert main(["build", "pages", "-o", "out.pdf", "--nope"]) == 2
+    assert "unknown" in capsys.readouterr().err.lower()
+
+
+def test_build_negative_margin_maps_to_validation(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Negative --margin fails domain validation (exit 3)."""
+    source = tmp_path / "pages"
+    source.mkdir()
+    Image.new("RGB", (8, 8)).save(source / "a.png")
+    code = main(["build", str(source), "-o", str(tmp_path / "o.pdf"), "--margin", "-2"])
+    assert code == 3
+    assert "margin" in capsys.readouterr().err.lower()
+
+
+def test_build_title_and_author_reach_pdf_metadata(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """CLI --title/--author are written into PDF document info."""
+    from pypdf import PdfReader
+
+    source = tmp_path / "pages"
+    source.mkdir()
+    Image.new("RGB", (16, 16), (5, 5, 5)).save(source / "p1.png")
+    output = tmp_path / "book.pdf"
+    code = main(
+        [
+            "build",
+            str(source),
+            "-o",
+            str(output),
+            "--title",
+            "Field Notes",
+            "--author",
+            "Ali Sadeghi Aghili",
+        ]
+    )
+    capsys.readouterr()
+    assert code == 0
+    meta = PdfReader(output).metadata
+    assert meta is not None
+    assert "Field Notes" in (meta.title or meta.get("/Title") or "")
+    author = meta.author if hasattr(meta, "author") else meta.get("/Author")
+    assert author is not None
+    assert "Ali Sadeghi Aghili" in author
+
+
+def test_build_title_change_invalidates_resume(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Changing --title rebuilds instead of skipping stale metadata."""
+    source = tmp_path / "pages"
+    source.mkdir()
+    Image.new("RGB", (16, 16), (9, 9, 9)).save(source / "p1.png")
+    output = tmp_path / "book.pdf"
+    assert main(["build", str(source), "-o", str(output), "--title", "A"]) == 0
+    capsys.readouterr()
+    assert main(["build", str(source), "-o", str(output), "--title", "B"]) == 0
+    captured = capsys.readouterr()
+    assert "Wrote" in captured.out
+    assert "Up to date" not in captured.out
+
+
+def test_build_title_requires_value(capsys: pytest.CaptureFixture[str]) -> None:
+    """--title without a value is a usage error."""
+    assert main(["build", "pages", "-o", "out.pdf", "--title"]) == 2
+    assert "--title" in capsys.readouterr().err
+
+
+def test_print_progress_stages_emit_stderr(capsys: pytest.CaptureFixture[str]) -> None:
+    """Progress callback renders each pipeline stage on stderr."""
+    from bindery.cli import _print_progress
+    from bindery.orchestration.progress import ProgressEvent
+
+    _print_progress(ProgressEvent(stage="transform", completed=1, total=2, current="a.png"))
+    _print_progress(ProgressEvent(stage="transform", completed=2, total=2, current=None))
+    _print_progress(ProgressEvent(stage="discover", completed=1, total=1, message="found 1"))
+    _print_progress(ProgressEvent(stage="assemble", completed=0, total=1, current="book.pdf"))
+    _print_progress(ProgressEvent(stage="skipped", completed=1, total=1, message="up to date"))
+    _print_progress(ProgressEvent(stage="done", completed=1, total=1, message="1 pages"))
+    err = capsys.readouterr().err
+    assert "[transform 1/2]" in err
+    assert "[discover]" in err
+    assert "[assemble]" in err
+    assert "[skip]" in err
+    assert "[done]" in err
+
+
+def test_build_invalid_title_requires_author_flag(capsys: pytest.CaptureFixture[str]) -> None:
+    """--author without a value is a usage error."""
+    assert main(["build", "pages", "-o", "out.pdf", "--author"]) == 2
+    assert "--author" in capsys.readouterr().err

@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
-"""Enforce the docstring standard from ``ENGINEERING-STANDARDS.md`` §2.
+"""Structural docstring audit for public symbols in a Python package.
 
-This is a CI gate, not a linter suggestion: it exits non-zero when any public
-symbol is missing a section the standard requires for its kind. It understands
-both Google-style (``Args:``/``Returns:``) and NumPy/numpydoc-style
-(``Parameters``/``Returns`` underlined) docstrings, and is configured per repo
-so that a repo's existing convention is enforced rather than replaced.
+CI gate for bindery: exits non-zero when any public symbol is missing a
+docstring section required for its kind. Understands Google-style
+(``Args:``/``Returns:``) and NumPy/numpydoc-style (``Parameters``/``Returns``
+underlined) docstrings; the package style is selected per invocation.
 
-The check is deliberately structural, not stylistic. It verifies that a section
-exists and that every parameter is named in it. It cannot verify that the prose
-is *true* -- that is what ``tools/claim_audit.py`` and the doc-vs-code integrity
-rule (§2.3) are for.
+The check is structural, not stylistic. It verifies that required sections
+exist and that every parameter is named. It cannot verify that prose matches
+runtime behavior -- that remains a code-review duty for public API claims.
 
 Usage
 -----
 ::
 
-    python tools/doc_audit.py                    # audit configured package, cwd repo
-    python tools/doc_audit.py --path src/dqt --style google --require-example
-    python tools/doc_audit.py --baseline .doc_audit_baseline.json   # ratchet mode
+    python tools/doc_audit.py --path src/bindery --style google --require-example
+    python tools/doc_audit.py --path src/bindery --style google --baseline .doc_audit_baseline.json
 
 Exit codes
 ----------
@@ -193,7 +190,7 @@ class AuditConfig:
     Examples
     --------
     >>> import pathlib
-    >>> cfg = AuditConfig(root=pathlib.Path("."), package="src/dqt", style="google")
+    >>> cfg = AuditConfig(root=pathlib.Path("."), package="src/bindery", style="google")
     >>> cfg.require_example, cfg.style
     (True, 'google')
     """
@@ -440,7 +437,7 @@ def audit(cfg: AuditConfig) -> list[Violation]:
         except UnicodeDecodeError as exc:  # pragma: no cover - non-UTF-8 source
             # Surfaced as a violation rather than crashing the gate: a file that
             # cannot be read cannot be audited, and silently skipping it would
-            # be exactly the false all-clear ENGINEERING-STANDARDS.md §1.6 forbids.
+            # be exactly the false all-clear an undecodable-source skip would produce.
             violations.append(Violation(rel, 1, f.stem, "module", "undecodable-source", str(exc)))
             continue
 
@@ -512,9 +509,9 @@ def main(argv: Iterable[str] | None = None) -> int:
     >>> main(["--path", "nonexistent_pkg_xyz", "--root", "."])  # doctest: +SKIP
     2
     """
-    p = argparse.ArgumentParser(description="Enforce ENGINEERING-STANDARDS.md §2.")
+    p = argparse.ArgumentParser(description="Structural docstring audit for public symbols.")
     p.add_argument("--root", default=".", help="Repository root.")
-    p.add_argument("--path", required=True, help="Package path relative to root, e.g. src/dqt.")
+    p.add_argument("--path", required=True, help="Package path relative to root, e.g. src/bindery.")
     p.add_argument("--style", choices=["google", "numpy"], default="numpy")
     p.add_argument("--require-example", action="store_true", default=False)
     p.add_argument("--baseline", default=None, help="JSON file of accepted existing violations.")

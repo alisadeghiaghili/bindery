@@ -37,6 +37,7 @@ Requires Python 3.12+.
 
 ```bash
 bindery build ./pages -o book.pdf --margin 8 --grayscale --stamp --dpi 300
+bindery build ./pages -o book.pdf --title "My Book" --author "Name"
 bindery build ./pages -o book.pdf --force   # rebuild even if up to date
 bindery inspect ./pages
 bindery doctor
@@ -45,7 +46,7 @@ bindery --version
 bindery --help
 ```
 
-A sidecar `book.pdf.bindery.json` records a config fingerprint. Re-running an identical job prints `Up to date` and skips work unless you pass `--force`.
+A sidecar `book.pdf.bindery.json` records a config fingerprint (options + page identity + metadata). Re-running an identical job prints `Up to date` and skips work unless you pass `--force`.
 
 Exit codes: `0` success, `2` usage, `3` validation, `4` I/O.
 

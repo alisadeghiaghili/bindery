@@ -35,6 +35,20 @@ def test_job_config_defaults(tmp_path: Path) -> None:
     assert config.grayscale is False
     assert config.stamp_page_numbers is False
     assert config.dpi == 300
+    assert config.title is None
+    assert config.author is None
+
+
+def test_job_config_normalizes_title_and_author(tmp_path: Path) -> None:
+    """Blank metadata collapses to None; surrounding whitespace is stripped."""
+    config = JobConfig(
+        source_dir=tmp_path / "pages",
+        output_path=tmp_path / "book.pdf",
+        title="  My Book  ",
+        author="   ",
+    )
+    assert config.title == "My Book"
+    assert config.author is None
 
 
 def test_job_config_rejects_bad_dpi(tmp_path: Path) -> None:
@@ -48,6 +62,14 @@ def test_job_config_rejects_same_source_and_output_file(tmp_path: Path) -> None:
     page = tmp_path / "book.pdf"
     with pytest.raises(BinderyValidationError, match="output"):
         JobConfig(source_dir=page, output_path=page)
+
+
+def test_job_config_rejects_equivalent_relative_forms(tmp_path: Path, monkeypatch) -> None:
+    """pages and ./pages resolve to the same location and are rejected."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "pages").mkdir()
+    with pytest.raises(BinderyValidationError, match="output"):
+        JobConfig(source_dir=Path("pages"), output_path=Path("./pages"))
 
 
 def test_job_config_allows_directory_source_and_file_output(tmp_path: Path) -> None:

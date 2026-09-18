@@ -41,16 +41,19 @@ def ensure_positive_size(size: tuple[int, int], *, context: str = "image") -> tu
 def ensure_source_output_distinct(source: Path, output: Path) -> None:
     """Reject jobs where the output path equals the source path.
 
+    Comparison uses resolved absolute paths so ``pages`` and ``./pages`` are
+    treated as the same location when both resolve.
+
     Args:
         source: Source directory or file.
         output: Destination PDF path.
 
     Raises:
-        BinderyValidationError: If the two paths are equal.
+        BinderyValidationError: If the two paths resolve to the same location.
 
     Examples:
         >>> from pathlib import Path
         >>> ensure_source_output_distinct(Path("pages"), Path("book.pdf"))
     """
-    if Path(source) == Path(output):
+    if Path(source).resolve() == Path(output).resolve():
         raise BinderyValidationError(f"output must differ from source_dir; both are {source}")

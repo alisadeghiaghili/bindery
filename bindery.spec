@@ -8,7 +8,9 @@ a = Analysis(
     pathex=['src'],
     binaries=[],
     datas=[],
-    hiddenimports=['img2pdf', 'PIL', 'pypdf', 'pikepdf'],
+    # Runtime imports are img2pdf + Pillow + pypdf only. Do not list
+    # undeclared extras (pikepdf) — PyInstaller would hide a missing install.
+    hiddenimports=['img2pdf', 'PIL', 'pypdf'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

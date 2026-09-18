@@ -7,14 +7,21 @@ from unittest.mock import patch
 
 import pytest
 
+# uv-managed Linux Pythons often ship without Tcl/Tk; skip the module cleanly
+# instead of failing collection when `import tkinter` raises ModuleNotFoundError.
+pytest.importorskip("tkinter")
+
 from bindery.gui import BinderyApp
 from bindery.orchestration.progress import ProgressEvent
 
 
 @pytest.fixture
-def app() -> BinderyApp:
-    """Create a hidden BinderyApp for tests."""
-    instance = BinderyApp()
+def app():
+    """Create a hidden BinderyApp for tests, or skip if Tk is unavailable."""
+    try:
+        instance = BinderyApp()
+    except Exception as exc:  # noqa: BLE001 - Tcl/Tk may be missing on CI images
+        pytest.skip(f"tkinter runtime unavailable: {exc}")
     instance.root.withdraw()
     yield instance
     with contextlib.suppress(Exception):
@@ -23,30 +30,48 @@ def app() -> BinderyApp:
         instance.root.destroy()
 
 
-def test_app_title_includes_version(app: BinderyApp) -> None:
+def test_app_title_includes_version(app) -> None:
     """Window title starts with bindery."""
     assert app.root.title().startswith("bindery")
 
 
-def test_append_log_updates_text(app: BinderyApp) -> None:
+def test_append_log_updates_text(app) -> None:
     """Logging writes into the text widget."""
     app._append_log("hello")
     content = app._log.get("1.0", "end")
     assert "hello" in content
 
 
-def test_handle_progress_sets_fraction(app: BinderyApp) -> None:
+def test_handle_progress_sets_fraction(app) -> None:
     """Progress events drive the progress bar."""
     app._handle_progress(ProgressEvent(stage="transform", completed=1, total=2, current="a.png"))
     assert float(app._progress["value"]) == pytest.approx(50.0)
 
 
-def test_start_requires_paths(app: BinderyApp) -> None:
+def test_start_requires_paths(app) -> None:
     """Empty form does not start a worker (dialog mocked)."""
-    with patch("bindery.gui.messagebox.showerror") as showerror:
+    with patch.object(app._messagebox, "showerror") as showerror:
         app._start()
     assert showerror.called
     assert app._worker is None or not app._worker.is_alive()
+
+
+def test_cancel_job_sets_cancel_flag(app) -> None:
+    """Cancel sets the cooperative flag and updates status text."""
+    assert not app._cancel.is_set()
+    app._cancel_job()
+    assert app._cancel.is_set()
+    assert "Cancel" in app._status_var.get()
+
+
+def test_handle_error_resets_controls(app) -> None:
+    """Error/cancel paths re-enable Assemble and disable Cancel."""
+    app._start_btn.configure(state="disabled")
+    app._cancel_btn.configure(state="normal")
+    app._handle_error("cancelled by user")
+    assert str(app._start_btn["state"]) == "normal"
+    assert str(app._cancel_btn["state"]) == "disabled"
+    assert app._status_var.get() == "Cancelled"
 
 
 def test_cli_gui_is_listed() -> None:

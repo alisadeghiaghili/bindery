@@ -10,8 +10,8 @@ def test_import_bindery() -> None:
     assert bindery is not None
 
 
-def test_public_exports_include_version_and_errors() -> None:
-    """Public API for v0.1.0 is version helpers plus the exception tree."""
+def test_public_exports_include_version_errors_and_pipeline() -> None:
+    """Public API includes version helpers, errors, and the job pipeline."""
     expected = {
         "__version__",
         "get_version",
@@ -19,6 +19,9 @@ def test_public_exports_include_version_and_errors() -> None:
         "BinderyConfigError",
         "BinderyIOError",
         "BinderyValidationError",
+        "JobConfig",
+        "JobReport",
+        "run_job",
     }
     assert expected.issubset(set(bindery.__all__))
 

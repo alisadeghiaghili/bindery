@@ -13,11 +13,13 @@ concurrency:
 jobs:
   quality:
     name: Lint, type, test
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
       matrix:
-        python-version: ["3.12"]
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.12", "3.13"]
+        # 3.13 is claimed by classifiers; matrix proves it.
 
     steps:
       - name: Check out repository
@@ -43,6 +45,9 @@ jobs:
       - name: Mypy
         run: uv run mypy src
 
+      # Coverage gate (fail_under=90) excludes gui.py — see pyproject.toml.
+      # GUI smoke module importorskips tkinter so uv Linux images without
+      # Tcl/Tk do not fail collection.
       - name: Pytest
         run: uv run pytest --cov=bindery --cov-report=term-missing
 
